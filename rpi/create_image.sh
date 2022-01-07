@@ -6,15 +6,34 @@ SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
 pushd ${SCRIPT_PATH}
 
 # Settings
-NODENAME="${NODENAME}"
+NODENAME="${NODENAME:-riasc-agent}"
 TOKEN="${TOKEN:-XXXXX}"
 
-FLAVOR=${FLAVOR:edgeflex}
-OS="ubuntu"
+FLAVOR=${FLAVOR:-erigrid}
 
-IMAGE_FILE="ubuntu-20.04.2-preinstalled-server-arm64+raspi"
-IMAGE_SUFFIX="img.xz"
-IMAGE_URL="https://cdimage.ubuntu.com/releases/20.04.2/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
+case ${FLAVOR} in
+	edgeflex)
+		OS="ubuntu"
+		;;
+
+	erigrid)
+		OS="raspios"
+		;;
+esac
+
+case ${OS} in
+	ubuntu)
+		IMAGE_FILE="ubuntu-20.04.2-preinstalled-server-arm64+raspi"
+		IMAGE_SUFFIX="img.xz"
+		IMAGE_URL="https://cdimage.ubuntu.com/releases/20.04.2/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
+		;;
+
+	raspios)
+		IMAGE_FILE="2021-05-07-raspios-buster-armhf-lite"
+		IMAGE_SUFFIX="zip"
+		IMAGE_URL="https://downloads.raspberrypi.org/raspios_lite_armhf/images/raspios_lite_armhf-2021-05-28/${IMAGE_FILE}.${IMAGE_SUFFIX}"
+		;;
+esac
 
 RIASC_IMAGE_FILE="$(date +%Y-%m-%d)-riasc-${OS}"
 
@@ -24,6 +43,10 @@ function check_command() {
 		exit
 	fi
 }
+
+# Show config
+echo "Using hostname: ${NODENAME}"
+echo "Using token: ${TOKEN}"
 
 # Check that required commands exist
 echo "Check if required commands are installed..."
@@ -57,23 +80,22 @@ fi
 echo "Copying image..."
 cp ${IMAGE_FILE}.img ${RIASC_IMAGE_FILE}.img
 
-CONFIG_FILE="riasc.${FLAVOR}.yaml"
+# Prepare config
+case ${FLAVOR} in
+	erigrid)
+		CONFIG_FILE="riasc.yaml"
+		;;
+	*)
+		CONFIG_FILE="riasc.${FLAVOR}.yaml"
+		;;
+esac
 cp ../common/${CONFIG_FILE} riasc.yaml
-
-# Check config
-if [[-z ${NODENAME}]]
-	echo "No Nodename provided"
-	echo "Not patching Image"
-	echo "Please provide nodename with: 'export NODENAME=XXXX'"
-	exit 0
-fi
 
 # Patch config
 sed -i \
-	-e "s/edgePMU/${NODENAME}/g" \
+	-e "s/XXXXX/${TOKEN}/g" \
+	-e "s/riasc-agent/${NODENAME}/g" \
 	riasc.yaml
-
-
 
 # Prepare systemd-timesyncd config
 cat > fallback-ntp.conf <<EOF

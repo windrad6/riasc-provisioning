@@ -155,6 +155,10 @@ if [ $(config '.ansible.verify_commit') == "true" ]; then
 	ANSIBLE_OPTS+="--verify-commit"
 fi
 
+if [ -z $(config '.ansible.branch')]; then
+	ANSIBLE_OPTS+="--checkout $(config '.ansible.playbook')"
+fi
+
 # Run Ansible playbook
 log "Running Ansible playbook..."
 ANSIBLE_FORCE_COLOR=1 \
