@@ -117,7 +117,7 @@ mkdir ${NODENAME}
 echo "Copying files"
 NODE_IMAGE_FILE="${NODENAME}_IMAGE"
 cp ${IMAGE_FILE} "${NODENAME}/${NODE_IMAGE_FILE}.img"
-cp ${SSL_CERT_FILE} "${NODENAME}/openssl.conf"
+cp ${SSL_CERT_FILE} "${NODENAME}/acs-lab.conf"
 cp ${CONFIG_PATH} "${NODENAME}/riasc.yaml"
 cp "user-data" "${NODENAME}/user-data"
 echo "Done"
@@ -142,14 +142,14 @@ sed -i \
 #Select branch
 if [[ -n ${GIT_BRANCH} ]]; then
     sed -i \
-    -e "/url: /abranch: ${GIT_BRANCH}" riasc.yaml
+    -e "/url: /a    branch: ${GIT_BRANCH}" riasc.yaml
 else
-    sed -i "/url: /abranch: development" riasc.yaml #default develop
+    sed -i "/url: /a    branch: development" riasc.yaml #default develop
 fi
 
 #Git token
 if [[ -n ${GIT_TOKEN} ]]; then
-    sed -i "/url: /atoken: ${GIT_TOKEN}" riasc.yaml
+    sed -i "/url: /a    token: ${GIT_TOKEN}" riasc.yaml
 fi
 
 
@@ -186,6 +186,9 @@ echo "Copy files into image..."
 copy-in riasc.yaml /boot
 copy-in user-data /boot
 copy-in vaultkey.secret /boot
+
+mkdir /boot/openvpn/
+copy-in acs-lab.conf /boot/openvpn
 EOF
 
 #Write patch to image
