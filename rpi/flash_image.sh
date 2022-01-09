@@ -12,22 +12,25 @@ ASK_CONFIRM=true
 #Get User input
 usage(){
     echo "Usage:"
-    echo "  -I  [Path to Image:     -I /path/to/image/]"
-    echo "  -N  [Hostname to use:   -N name]"
-    echo "  -T  [Gitlab Token:      -T GITLAB/HUB Token]" #Currently not used
-    echo "  -S  [Path to SSL Cert:  -S /path/to/cert]"
+    echo "  -I  [Path to Image:                 -I /path/to/image/]"
+    echo "  -N  [Hostname to use:               -N name]"
+    echo "  -T  [Git !project! acces token:     -T GITLAB token]"
+    echo "  -B  [Git branch                     -B development]"
+    echo "  -S  [Path to SSL Cert:              -S /path/to/cert]"
     echo "  -y  [Dont ask for confirmations]"
     exit
 }
 
 
-while getopts ":I:N:T:S::y" opt
+while getopts ":I:N:T:B:S::y" opt
 do
     case "${opt}" in
         I) IMAGE_FILE=${OPTARG};;
         S) SSL_CERT_FILE=${OPTARG} ;;
         N) NODENAME=${OPTARG} ;;
         y) ASK_CONFIRM=false ;;
+        T) GIT_TOKEN=${OPTARG} ;;
+        B) GIT_BRANCH=${OPTARG} ;;
         *) echo "Unknown argument ${OPTARG}"
            usage ;;
         :) usage ;;
@@ -131,6 +134,8 @@ openssl rand -hex 128 > "vaultkey.secret"
 #GPG key pair
 #TODO
 
+echo ${GIT_TOKEN} > "git_token.secret"
+
 echo "Done"
 
 echo "Writing configuration"
@@ -142,16 +147,13 @@ sed -i \
 #Select branch
 if [[ -n ${GIT_BRANCH} ]]; then
     sed -i \
-    -e "/url: /a    branch: ${GIT_BRANCH}" riasc.yaml
-else
-    sed -i "/url: /a    branch: development" riasc.yaml #default develop
+    -e "/url: /a\\\\tbranch: ${GIT_BRANCH}" riasc.yaml
 fi
 
 #Git token
 if [[ -n ${GIT_TOKEN} ]]; then
-    sed -i "/url: /a    token: ${GIT_TOKEN}" riasc.yaml
+    sed -i -e "s/git.rwth-aachen/pmu-acs:${GIT_TOKEN}@git.rwth-aachen/g" riasc.yaml
 fi
-
 
 sed -i \
 	-e "s/exampleHost/${NODENAME}/g" \
@@ -186,6 +188,7 @@ echo "Copy files into image..."
 copy-in riasc.yaml /boot
 copy-in user-data /boot
 copy-in vaultkey.secret /boot
+copy-in git_token.secret /boot
 
 mkdir /boot/openvpn/
 copy-in acs-lab.conf /boot/openvpn
