@@ -129,7 +129,12 @@ pushd ${NODENAME}
 
 echo "Generating secrets"
 #Ansible vault key (Currently not used but its there)
-openssl rand -hex 128 > "vaultkey.secret"
+VAULT_KEY=$(openssl rand -hex 128)
+cat <<EOF > vaultkey.secret
+#!/bin/bash
+echo "${VAULT_KEY}"
+EOF
+
 
 #GPG key pair
 #TODO
