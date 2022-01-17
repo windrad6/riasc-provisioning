@@ -180,9 +180,9 @@ fi
 
 echo ${PMU_GIT_TOKEN} > "git_token.secret" #TODO: braucht man das??
 
-#SNMP key
-SNMP_KEY=$(openssl rand -hex 10)
-echo ${SNMP_KEY} > "snmp.secret" #TODO: braucht man das??
+#SNMP pass
+SNMP_PASS=$(openssl rand -hex 10)
+echo ${SNMP_PASS} > "snmp.secret" #TODO: braucht man das??
 
 echo "Done"
 
@@ -215,9 +215,14 @@ echo "Done"
 
 #1. Encrypt with ansible
 #OpenVPN.
-#SNMP Key
+ansible-vault encrypt --vault-password-file ./vaultkey.secret acs-lab.conf
 
+#SNMP
+SNMP_PASS_VAULT=$(ansible-vault encrypt_string --vault-password-file ./vaultkey.secret --name SNMP_PASS ${SNMP_PASS})
+echo ${SNMP_PASS_VAULT}
 #2. Write variables to ansible-repo
+#make sure host bin exists
+
 
 #3. Commit and push ansible-repo
 
@@ -226,7 +231,7 @@ echo "Done"
 #5. Push to pass repo
 
 #================================== Write to Image ==================================
-
+exit
 #1. Write patch file
 echo "Writing Patch file"
 
