@@ -1,56 +1,68 @@
 #!/bin/bash
 set -e
+set -x
 
 SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
+SCRIPT_OWNER=$(stat -c '%U' ${SCRIPT_PATH})
 pushd ${SCRIPT_PATH}
+
 
 #======================= Predefined settings =====================
 CONFIG_FILE="riasc.edgeflex.yaml"
 SSL_SEARCH_PATH="./ssl"
 ASK_CONFIRM=true
+DEBUG=false
 
-GIT_SERVER="git@git.rwth-aachen.de"
-GIT_ANSIBLE_REPO=${GIT_SERVER}":acs/public/software/pmu/pmu-ansible.git"
-GIT_PASS=${GIT_SERVER}":acs/public/software/pmu/pmu_pass.git"
+GIT_SERVER="git.rwth-aachen.de"
+GIT_USE_KEY=false
+GIT_MIN_ACCESS_LEVEL=40
+
+GIT_ANSIBLE_REPO_NAME="pmu-ansible"
+GIT_ANSIBLE_REPO_ID=67607
+GIT_ANSIBLE_REPO="${GIT_SERVER}/acs/public/software/pmu/${GIT_ANSIBLE_REPO_NAME}.git"
+
+GIT_PASS_REPO_NAME="PMU_pass"
+GIT_PASS_REPO_ID=67640
+GIT_PASS_REPO="${GIT_SERVER}/acs/public/software/pmu/${GIT_PASS_REPO_NAME}.git"
 
 #========================= Get User input =========================
 usage(){
     echo "Usage:"
     echo "  -I  [Path to Image:                 -I /path/to/image/]"
     echo "  -N  [Hostname to use:               -N name]"
-    echo "  -T  [Git !project! acces token:     -T GITLAB token]"
     echo "  -B  [Git branch                     -B development]"
-    echo "  -S  [Path to SSL Cert:              -S /path/to/cert]"
+    echo "  -S  [Path to SSL Cert:             -S /path/to/cert]"
     echo "  -y  [Dont ask for confirmations]"
     echo ""
     echo "Credentials for ansible/pass repo"
-    echo "  -U  [${GIT_SERVER} username         -B myName]"
+    echo "  -U  [${GIT_SERVER} username         -U myName]"
     echo "  -P  [${GIT_SERVER} pass/token       -P Token]"
     exit
 }
 
 
-while getopts ":I:N:T:B:S:yU:P:" opt
+while getopts ":I:N:B:S:U::P::yd" opt
 do
     case "${opt}" in
         I) IMAGE_FILE=${OPTARG};;
         S) SSL_CERT_FILE=${OPTARG} ;;
         N) NODENAME=${OPTARG} ;;
         y) ASK_CONFIRM=false ;;
-        T) PMU_GIT_TOKEN=${OPTARG} ;;
         B) PMU_GIT_BRANCH=${OPTARG} ;;
-        U) GIT_USERNAME=${OPTARG}
-        P) GIT_PASS=${OPTARG}
+        U) GIT_USERNAME=${OPTARG} ;;
+        P) GIT_PASS=${OPTARG} ;;
+        d) DEBUG=true ;;
         *) echo "Unknown argument ${OPTARG}"
            usage ;;
         :) usage ;;
     esac
 done
 
-if [ $OPTIND -eq 1 ]; then 
-    echo "Not enougth options" 
-    usage;
-fi
+
+#if [ $OPTIND -eq 1 ]; then 
+#    echo "Not enougth options" 
+#    usage;
+#fi
 
 #Ensure RIASC Image file is found
 if ! [[ -r ${IMAGE_FILE} ]]; then #TODO: Check if this is a .zip file
@@ -61,12 +73,6 @@ fi
 #Ensure Nodename is supplied
 if ! [[ -n ${NODENAME} ]]; then
     echo "No node name supplied"
-    usage
-fi
-
-#Ensure git project token is supplied
-if ! [[ -n ${PMU_GIT_TOKEN} ]]; then
-    echo "No git acces token supplied"
     usage
 fi
 
@@ -85,11 +91,25 @@ else
     exit
 fi
 
-exit
 #========================= Check if we can access Git repos =========================
-#Dont do for now
+GIT_API_URL="https://${GIT_SERVER}/api/v4"
+GIT_API_AUTH_HEADER="--header 'PRIVATE-TOKEN: ${GIT_PASS}'"
 
-#Check if repos (pass + ansible) are available
+#Check Permissions on ansible repo via gitlab api
+GIT_ANSIBLE_PERM_J=$(curl -s --header "PRIVATE-TOKEN: ${GIT_PASS}" ${GIT_API_URL}/projects/${GIT_ANSIBLE_REPO_ID} | jq -r '.permissions')
+if [[ $(echo ${GIT_ANSIBLE_PERM_J} | jq -r '.group_access.access_level') -lt ${GIT_MIN_ACCESS_LEVEL} ]] && [[ $(echo ${GIT_ANSIBLE_PERM_J} | jq -r '.project_access.access_level') -lt ${GIT_MIN_ACCESS_LEVEL} ]]; then
+    echo "You appear to not have the right permissions for the ${GIT_ANSIBLE_REPO_NAME} repository"
+    echo "Please make sure that you have an access of at least ${GIT_MIN_ACCESS_LEVEL}"
+    exit
+fi
+
+#Check Permissions on pass repo via gitlab api
+GIT_PASS_PERM_J=$(curl -s --header "PRIVATE-TOKEN: ${GIT_PASS}" ${GIT_API_URL}/projects/${GIT_PASS_REPO_ID} | jq -r '.permissions')
+if [[ $(echo ${GIT_PASS_PERM_J} | jq -r '.group_access.access_level') -lt ${GIT_MIN_ACCESS_LEVEL} ]] && [[ $(echo ${GIT_PASS_PERM_J} | jq -r '.project_access.access_level') -lt ${GIT_MIN_ACCESS_LEVEL} ]]; then
+    echo "You appear to not have the right permissions for the ${GIT_PASS_REPO_NAME} repository"
+    echo "Please make sure that you have an access of at least ${GIT_MIN_ACCESS_LEVEL}"
+    exit
+fi
 
 #================================= Confirm settings =================================
 echo "Gathered following configuration:"
@@ -97,9 +117,10 @@ echo "Nodename:     ${NODENAME}"
 echo "Image:        ${IMAGE_FILE}"
 echo "SSL_CERT:     ${SSL_CERT_FILE}"
 echo "Config:       ${CONFIG_PATH}"
+echo "Git User:     ${GIT_USERNAME}"
 
 if [[ -n ${PMU_GIT_BRANCH} ]]; then
-echo "Branch:       ${PMU_GIT_BRANCH}"
+    echo "Branch:       ${PMU_GIT_BRANCH}"
 fi
 
 if [[ ${ASK_CONFIRM} == true ]]; then
@@ -130,11 +151,12 @@ cp ${CONFIG_PATH} "${NODENAME}/riasc.yaml"
 cp "user-data" "${NODENAME}/user-data"
 echo "Done"
 
-#3. Make sure repos are here
-
-
-#4. Enter working directory
+#3. Enter working directory
 pushd ${NODENAME}
+
+#4. Make sure repos are here
+git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_PASS_REPO}"
+git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_ANSIBLE_REPO}" -b ${PMU_GIT_BRANCH:main}
 
 #5. Generate secrets and write to files
 echo "Generating secrets"
@@ -147,6 +169,15 @@ echo "${VAULT_KEY}"
 EOF
 
 #Git token
+#request git token from API TODO: check if old token exists and delte
+TOKEN_RESP_J=$(curl -s --request POST --header "PRIVATE-TOKEN: ${GIT_PASS}" --header "Content-Type:application/json" --data "{ \"name\":\"${NODENAME}\", \"scopes\":[\"read_repository\"]}" "${GIT_API_URL}/projects/${GIT_ANSIBLE_REPO_ID}/access_tokens")
+PMU_GIT_TOKEN=$(echo ${TOKEN_RESP_J} | jq -r '.token')
+echo ${PMU_GIT_TOKEN}
+if [ -z ${PMU_GIT_TOKEN} ]; then
+    echo "Error while creating git access token"
+    exit
+fi
+
 echo ${PMU_GIT_TOKEN} > "git_token.secret" #TODO: braucht man das??
 
 #SNMP key
@@ -171,9 +202,7 @@ if [[ -n ${PMU_GIT_BRANCH} ]]; then
 fi
 
 #Git token
-if [[ -n ${PMU_GIT_TOKEN} ]]; then
-    sed -i -e "s/git.rwth-aachen/pmu-acs:${PMU_GIT_TOKEN}@git.rwth-aachen/g" riasc.yaml
-fi
+sed -i -e "s/git.rwth-aachen/pmu-acs:${PMU_GIT_TOKEN}@git.rwth-aachen/g" riasc.yaml
 
 #Node Name
 sed -i \
@@ -239,6 +268,18 @@ guestfish < edgeflex.fish
 #zip ${NODE_IMAGE_FILE}.zip ${NODE_IMAGE_FILE}.img
 #rm -f ${NODE_IMAGE_FILE}.img
 #echo "Done"
+
+
+#4. Clean up
+if [[ DEBUG == false ]]; then
+echo "removing stuff"
+rm "acs-lab.conf"
+rm "edgeflex.fish"
+rm "riasc.yaml"
+rm "user-data"
+rm "*.secret"
+fi
+
 
 #4. Final outputs
 echo "Please write the new image to an SD card:"
