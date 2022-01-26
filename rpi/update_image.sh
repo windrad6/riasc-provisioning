@@ -6,6 +6,9 @@ SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
 SCRIPT_OWNER=$(stat -c '%U' ${SCRIPT_PATH})
 pushd ${SCRIPT_PATH}
 
+#====================== Required Packages ========================
+#jq, ansible-vault (ansible), pass
+
 
 #======================= Predefined settings =====================
 CONFIG_FILE="riasc.edgeflex.yaml"
@@ -25,6 +28,15 @@ GIT_PASS_REPO_NAME="PMU_pass"
 GIT_PASS_REPO_ID=67640
 GIT_PASS_REPO="${GIT_SERVER}/acs/public/software/pmu/${GIT_PASS_REPO_NAME}.git"
 
+PASS_GPG_DIR="gpg"
+PASS_GPG_KEYRING="${PASS_GPG_DIR}/keyring.gpg"
+PASS_GPG_OPTIONS="--no-default-keyring --keyring ${PASS_GPG_KEYRING} --homedir ${PASS_GPG_DIR}"
+
+#======================= Convenience Functions ====================
+function pass_cmd() {
+    PASSWORD_STORE_DIR=${GIT_PASS_REPO_NAME} PASSWORD_STORE_GPG_OPTS=${PASS_GPG_OPTIONS} pass $@ 
+}
+
 #========================= Get User input =========================
 usage(){
     echo "Usage:"
@@ -35,7 +47,7 @@ usage(){
     echo "  -y  [Dont ask for confirmations]"
     echo ""
     echo "Credentials for ansible/pass repo"
-    echo "  -U  [${GIT_SERVER} username         -U myName]"
+    echo "  -U  [${GIT_SERVER} username         -U myName]" #Needed?
     echo "  -P  [${GIT_SERVER} pass/token       -P Token]"
     exit
 }
@@ -155,21 +167,43 @@ echo "Done"
 pushd ${NODENAME}
 
 #4. Make sure repos are here
+echo "Cloning GIT repos"
 git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_PASS_REPO}"
 git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_ANSIBLE_REPO}" -b ${PMU_GIT_BRANCH:main}
+echo "Done"
 
-#5. Generate secrets and write to files
+#5. Import GPG keys 
+echo "Setting up GPG keyring / trustdb"
+mkdir ${PASS_GPG_DIR}
+touch ${PASS_GPG_KEYRING}
+chmod 600 ${PASS_GPG_DIR}/*
+chmod 700 ${PASS_GPG_DIR}
+
+gpg ${PASS_GPG_OPTIONS} --import $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.acs)
+for keyfile in $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.acs| xargs basename -a -s .acs); do
+    echo "${keyfile}:6:" | gpg ${PASS_GPG_OPTIONS} --import-ownertrust;
+done
+echo "Done"
+
+#6. Generate secrets and write to files
 echo "Generating secrets"
 
 #Vault Key
-VAULT_KEY=$(openssl rand -hex 128)
+#check if password repo allready contains 
+if [[ $(pass_cmd ${NODENAME}) != 0 ]]; then #No valid vault key was returned form password store
+    echo "Did not find existing vault key."
+    pass_cmd generate "${NODENAME}"
+fi
+VAULT_KEY=$(PASSWORD_STORE_DIR=${GIT_PASS_REPO_NAME} PASSWORD_STORE_GPG_OPTS="--homedir /home/${SCRIPT_OWNER}/.gnupg/" pass show ${NODENAME}) #Dont use GPG opts so the local secret key is used
+
+
 cat <<EOF > vaultkey.secret
 #!/bin/bash
 echo "${VAULT_KEY}"
 EOF
 
 #Git token
-#request git token from API TODO: check if old token exists and delte
+#request git token from API TODO: check if old token exists and delete
 TOKEN_RESP_J=$(curl -s --request POST --header "PRIVATE-TOKEN: ${GIT_PASS}" --header "Content-Type:application/json" --data "{ \"name\":\"${NODENAME}\", \"scopes\":[\"read_repository\"]}" "${GIT_API_URL}/projects/${GIT_ANSIBLE_REPO_ID}/access_tokens")
 PMU_GIT_TOKEN=$(echo ${TOKEN_RESP_J} | jq -r '.token')
 echo ${PMU_GIT_TOKEN}
@@ -215,23 +249,39 @@ echo "Done"
 
 #1. Encrypt with ansible
 #OpenVPN.
-ansible-vault encrypt --vault-password-file ./vaultkey.secret acs-lab.conf
-
+ansible-vault encrypt --vault-password-file ./vaultkey.secret acs-lab.conf --output acs-lab.conf.secret
 #SNMP
 SNMP_PASS_VAULT=$(ansible-vault encrypt_string --vault-password-file ./vaultkey.secret --name SNMP_PASS ${SNMP_PASS})
-echo ${SNMP_PASS_VAULT}
+
 #2. Write variables to ansible-repo
 #make sure host bin exists
+HOST_BIN="./${GIT_ANSIBLE_REPO_NAME}/inventory/edgeflex/host_vars/${NODENAME}"
+if ! [[ -d ${HOST_BIN} ]]; then
+    mkdir ${HOST_BIN}
+fi
 
+#Replace SNMP Pass
+cat <<EOF > ./${GIT_ANSIBLE_REPO_NAME}/inventory/edgeflex/host_vars/${NODENAME}/snmp.yml
+${SNMP_PASS_VAULT}
+SNMP_USR: ${NODENAME}
+EOF
+
+#Replace openVPN config
+cp ./acs-lab.conf.secret ${HOST_BIN}
 
 #3. Commit and push ansible-repo
-
-#4. Encrypt password with PGP key
+pushd ${GIT_ANSIBLE_REPO_NAME}
+git add .
+git commit -m "Running update_image on $(date) for ${NODENAME}"
+git push
+popd
 
 #5. Push to pass repo
+pushd ${GIT_PASS_REPO_NAME}
+#pass_cmd push
+popd
 
 #================================== Write to Image ==================================
-exit
 #1. Write patch file
 echo "Writing Patch file"
 
@@ -276,13 +326,16 @@ guestfish < edgeflex.fish
 
 
 #4. Clean up
-if [[ DEBUG == false ]]; then
-echo "removing stuff"
-rm "acs-lab.conf"
-rm "edgeflex.fish"
-rm "riasc.yaml"
-rm "user-data"
-rm "*.secret"
+if [[ ${DEBUG} == false ]]; then
+    echo "removing files"
+    rm "acs-lab.conf"
+    rm "edgeflex.fish"
+    rm "riasc.yaml"
+    rm "user-data"
+    rm *.secret
+    rm ${PASS_GPG_DIR} -r
+    rm ${GIT_PASS_REPO_NAME} -r
+    rm ${GIT_ANSIBLE_REPO_NAME} -r
 fi
 
 
