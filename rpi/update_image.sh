@@ -34,7 +34,7 @@ PASS_GPG_OPTIONS="--no-default-keyring --keyring ${PASS_GPG_KEYRING} --homedir $
 
 #======================= Convenience Functions ====================
 function pass_cmd() {
-    PASSWORD_STORE_DIR=${GIT_PASS_REPO_NAME} PASSWORD_STORE_GPG_OPTS=${PASS_GPG_OPTIONS} pass $@ 
+    PASSWORD_STORE_DIR="${SCRIPT_PATH}/${NODENAME}/${GIT_PASS_REPO_NAME}" PASSWORD_STORE_GPG_OPTS=${PASS_GPG_OPTIONS} PASSWORD_STORE_CLIP_TIME=1 pass $@ 
 }
 
 #========================= Get User input =========================
@@ -45,6 +45,7 @@ usage(){
     echo "  -B  [Git branch                     -B development]"
     echo "  -S  [Path to SSL Cert:             -S /path/to/cert]"
     echo "  -y  [Dont ask for confirmations]"
+    echo "  -d  [Debug mode. Dont delete temp files. Dont push to Repos]"
     echo ""
     echo "Credentials for ansible/pass repo"
     echo "  -U  [${GIT_SERVER} username         -U myName]" #Needed?
@@ -60,10 +61,10 @@ do
         S) SSL_CERT_FILE=${OPTARG} ;;
         N) NODENAME=${OPTARG} ;;
         y) ASK_CONFIRM=false ;;
+        d) DEBUG=true ;;
         B) PMU_GIT_BRANCH=${OPTARG} ;;
         U) GIT_USERNAME=${OPTARG} ;;
         P) GIT_PASS=${OPTARG} ;;
-        d) DEBUG=true ;;
         *) echo "Unknown argument ${OPTARG}"
            usage ;;
         :) usage ;;
@@ -77,7 +78,7 @@ done
 #fi
 
 #Ensure RIASC Image file is found
-if ! [[ -r ${IMAGE_FILE} ]]; then #TODO: Check if this is a .zip file
+if ! [[ -r ${IMAGE_FILE} ]]; then
     echo "Image file '${IMAGE_FILE}' does not exist"
     usage
 fi
@@ -135,6 +136,10 @@ if [[ -n ${PMU_GIT_BRANCH} ]]; then
     echo "Branch:       ${PMU_GIT_BRANCH}"
 fi
 
+if [[ ${DEBUG} = true ]]; then
+    echo "Running in Debug mode"
+fi
+
 if [[ ${ASK_CONFIRM} == true ]]; then
     echo "Continue? (Y,n)"
     read inp
@@ -142,7 +147,6 @@ if [[ ${ASK_CONFIRM} == true ]]; then
         exit
     fi    
 fi
-
 
 #============================== Setup to create patch ==============================
 
@@ -170,6 +174,7 @@ pushd ${NODENAME}
 echo "Cloning GIT repos"
 git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_PASS_REPO}"
 git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_ANSIBLE_REPO}" -b ${PMU_GIT_BRANCH:main}
+pass_cmd git init #tell pass we want to create commits when working with passwords
 echo "Done"
 
 #5. Import GPG keys 
@@ -189,13 +194,10 @@ echo "Done"
 echo "Generating secrets"
 
 #Vault Key
-#check if password repo allready contains 
-if [[ $(pass_cmd ${NODENAME}) != 0 ]]; then #No valid vault key was returned form password store
-    echo "Did not find existing vault key."
-    pass_cmd generate "${NODENAME}"
-fi
-VAULT_KEY=$(PASSWORD_STORE_DIR=${GIT_PASS_REPO_NAME} PASSWORD_STORE_GPG_OPTS="--homedir /home/${SCRIPT_OWNER}/.gnupg/" pass show ${NODENAME}) #Dont use GPG opts so the local secret key is used
-
+#backup existing password if exists
+pass_cmd mv ${NODENAME} "old/${NODENAME}_$(date '+%Y-%m-%d_%H:%M:%S')"
+pass_cmd generate ${NODENAME} -c -n 20 #TODO: this is not a pretty way to do this...
+VAULT_KEY=$(xclip -out -select clipboard)
 
 cat <<EOF > vaultkey.secret
 #!/bin/bash
@@ -203,7 +205,7 @@ echo "${VAULT_KEY}"
 EOF
 
 #Git token
-#request git token from API TODO: check if old token exists and delete
+#request git token from API
 TOKEN_RESP_J=$(curl -s --request POST --header "PRIVATE-TOKEN: ${GIT_PASS}" --header "Content-Type:application/json" --data "{ \"name\":\"${NODENAME}\", \"scopes\":[\"read_repository\"]}" "${GIT_API_URL}/projects/${GIT_ANSIBLE_REPO_ID}/access_tokens")
 PMU_GIT_TOKEN=$(echo ${TOKEN_RESP_J} | jq -r '.token')
 echo ${PMU_GIT_TOKEN}
@@ -212,11 +214,10 @@ if [ -z ${PMU_GIT_TOKEN} ]; then
     exit
 fi
 
-echo ${PMU_GIT_TOKEN} > "git_token.secret" #TODO: braucht man das??
+echo ${PMU_GIT_TOKEN} > "git_token.secret"
 
 #SNMP pass
 SNMP_PASS=$(openssl rand -hex 10)
-echo ${SNMP_PASS} > "snmp.secret" #TODO: braucht man das??
 
 echo "Done"
 
@@ -234,7 +235,7 @@ if [[ -n ${PMU_GIT_BRANCH} ]]; then
     sed -i \
     -e "/url: /a\\  branch: ${PMU_GIT_BRANCH}" riasc.yaml
 fi
-exit
+
 #Git token
 sed -i -e "s/git.rwth-aachen/pmu-acs:${PMU_GIT_TOKEN}@git.rwth-aachen/g" riasc.yaml
 
@@ -273,12 +274,16 @@ cp ./acs-lab.conf.secret ${HOST_BIN}
 pushd ${GIT_ANSIBLE_REPO_NAME}
 git add .
 git commit -m "Running update_image on $(date) for ${NODENAME}"
-git push
+if ! [ ${DEBUG} = true ]; then
+    git push
+fi
 popd
 
 #5. Push to pass repo
 pushd ${GIT_PASS_REPO_NAME}
-pass_cmd push
+if ! [ ${DEBUG} = true ]; then
+    pass_cmd git push
+fi
 popd
 
 #================================== Write to Image ==================================
