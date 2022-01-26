@@ -232,9 +232,9 @@ sed -i \
 #Select branch
 if [[ -n ${PMU_GIT_BRANCH} ]]; then
     sed -i \
-    -e "/url: /a\\\\tbranch: ${PMU_GIT_BRANCH}" riasc.yaml
+    -e "/url: /a\\  branch: ${PMU_GIT_BRANCH}" riasc.yaml
 fi
-
+exit
 #Git token
 sed -i -e "s/git.rwth-aachen/pmu-acs:${PMU_GIT_TOKEN}@git.rwth-aachen/g" riasc.yaml
 
@@ -278,7 +278,7 @@ popd
 
 #5. Push to pass repo
 pushd ${GIT_PASS_REPO_NAME}
-#pass_cmd push
+pass_cmd push
 popd
 
 #================================== Write to Image ==================================
