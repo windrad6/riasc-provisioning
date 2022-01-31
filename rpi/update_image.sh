@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
 SCRIPT_OWNER=$(stat -c '%U' ${SCRIPT_PATH})
@@ -14,6 +13,7 @@ pushd ${SCRIPT_PATH}
 CONFIG_FILE="riasc.edgeflex.yaml"
 SSL_SEARCH_PATH="./ssl"
 ASK_CONFIRM=true
+UPDATE=false
 DEBUG=false
 
 GIT_SERVER="git.rwth-aachen.de"
@@ -21,7 +21,7 @@ GIT_USE_KEY=false
 GIT_MIN_ACCESS_LEVEL=40
 
 GIT_ANSIBLE_REPO_NAME="pmu-ansible"
-GIT_ANSIBLE_REPO_ID=67607
+GIT_ANSIBLE_REPO_ID=61980
 GIT_ANSIBLE_REPO="${GIT_SERVER}/acs/public/software/pmu/${GIT_ANSIBLE_REPO_NAME}.git"
 
 GIT_PASS_REPO_NAME="PMU_pass"
@@ -46,6 +46,7 @@ usage(){
     echo "  -S  [Path to SSL Cert:             -S /path/to/cert]"
     echo "  -y  [Dont ask for confirmations]"
     echo "  -d  [Debug mode. Dont delete temp files. Dont push to Repos]"
+    echo "  -u  [Update mode. Dont delete temp files but push to Repos]"
     echo ""
     echo "Credentials for ansible/pass repo"
     echo "  -U  [${GIT_SERVER} username         -U myName]" #Needed?
@@ -54,7 +55,7 @@ usage(){
 }
 
 
-while getopts ":I:N:B:S:U::P::yd" opt
+while getopts ":I:N:B:S:U::P::ydu" opt
 do
     case "${opt}" in
         I) IMAGE_FILE=${OPTARG};;
@@ -62,7 +63,8 @@ do
         N) NODENAME=${OPTARG} ;;
         y) ASK_CONFIRM=false ;;
         d) DEBUG=true ;;
-        B) PMU_GIT_BRANCH=${OPTARG} ;;
+	u) UPDATE=true ;;
+	B) PMU_GIT_BRANCH=${OPTARG} ;;
         U) GIT_USERNAME=${OPTARG} ;;
         P) GIT_PASS=${OPTARG} ;;
         *) echo "Unknown argument ${OPTARG}"
@@ -104,6 +106,7 @@ else
     exit
 fi
 
+
 #========================= Check if we can access Git repos =========================
 GIT_API_URL="https://${GIT_SERVER}/api/v4"
 GIT_API_AUTH_HEADER="--header 'PRIVATE-TOKEN: ${GIT_PASS}'"
@@ -138,6 +141,10 @@ fi
 
 if [[ ${DEBUG} = true ]]; then
     echo "Running in Debug mode"
+fi
+
+if [[ ${UPDATE} = true ]]; then
+    echo "Running in Update mode"
 fi
 
 if [[ ${ASK_CONFIRM} == true ]]; then
@@ -195,19 +202,28 @@ echo "Generating secrets"
 
 #Vault Key
 #backup existing password if exists
-pass_cmd mv ${NODENAME} "old/${NODENAME}_$(date '+%Y-%m-%d_%H:%M:%S')"
-pass_cmd generate ${NODENAME} -c -n 20 #TODO: this is not a pretty way to do this...
-VAULT_KEY=$(xclip -out -select clipboard)
+if [[ -r ${GIT_PASS_REPO_NAME}/${NODENAME}.gpg ]]; then
+    echo "Backing old PW up"
+    pass_cmd mv ${NODENAME} "old/${NODENAME}_$(date '+%Y-%m-%d_%H:%M:%S')" 
+fi
+
+VAULT_KEY=$(pass_cmd generate ${NODENAME} -n 20 | tail -1) #TODO: this is not a pretty way to do this...
 
 cat <<EOF > vaultkey.secret
 #!/bin/bash
 echo "${VAULT_KEY}"
 EOF
+chmod +x vaultkey.secret
 
 #Git token
 #request git token from API
-TOKEN_RESP_J=$(curl -s --request POST --header "PRIVATE-TOKEN: ${GIT_PASS}" --header "Content-Type:application/json" --data "{ \"name\":\"${NODENAME}\", \"scopes\":[\"read_repository\"]}" "${GIT_API_URL}/projects/${GIT_ANSIBLE_REPO_ID}/access_tokens")
-PMU_GIT_TOKEN=$(echo ${TOKEN_RESP_J} | jq -r '.token')
+if [[ ${DEBUG} = false ]]; then
+    TOKEN_RESP_J=$(curl -s --request POST --header "PRIVATE-TOKEN: ${GIT_PASS}" --header "Content-Type:application/json" --data "{ \"name\":\"${NODENAME}\", \"scopes\":[\"read_repository\"]}" "${GIT_API_URL}/projects/${GIT_ANSIBLE_REPO_ID}/access_tokens")
+    PMU_GIT_TOKEN=$(echo ${TOKEN_RESP_J} | jq -r '.token')
+else
+    PMU_GIT_TOKEN="TEMPTOKEN"
+    echo "DID NOT GENERATE TOKEN DUE TO DEBUG MODE"
+fi
 echo ${PMU_GIT_TOKEN}
 if [ -z ${PMU_GIT_TOKEN} ]; then
     echo "Error while creating git access token"
@@ -273,9 +289,11 @@ cp ./acs-lab.conf.secret ${HOST_BIN}
 #3. Commit and push ansible-repo
 pushd ${GIT_ANSIBLE_REPO_NAME}
 git add .
-git commit -m "Running update_image on $(date) for ${NODENAME}"
+git commit -m "Running update_image on $(date) for ${NODENAME}" --author="Update Image Script<vincent.bareiss@rwth-aachen.de>"
 if ! [ ${DEBUG} = true ]; then
     git push
+else
+    echo "Didnt push to ansible repo due to debug mode"
 fi
 popd
 
@@ -283,6 +301,8 @@ popd
 pushd ${GIT_PASS_REPO_NAME}
 if ! [ ${DEBUG} = true ]; then
     pass_cmd git push
+else
+    echo "Didnt push to pass repo due to debug mode"
 fi
 popd
 
@@ -331,7 +351,7 @@ guestfish < edgeflex.fish
 
 
 #4. Clean up
-if [[ ${DEBUG} == false ]]; then
+if [[ ${DEBUG} == false ]] && [[ ${UPDATE} == false ]]; then
     echo "removing files"
     rm "acs-lab.conf"
     rm "edgeflex.fish"
