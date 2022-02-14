@@ -318,21 +318,21 @@ if ! [[ -d ${HOST_BIN} ]]; then
 fi
 
 #Replace SNMP Pass
-if [[ ${USE_OVPN} == true ]]; then
+if [[ ${USE_SNMP} == true ]]; then
     cat <<EOF > ./${GIT_ANSIBLE_REPO_NAME}/inventory/edgeflex/host_vars/${NODENAME}/snmp.yml
     ${SNMP_PASS_VAULT}
     SNMP_USR: ${NODENAME}
 EOF
 else
     #Loesche alte SNMP config if it exists to not confuse ansible
-    rm ${HOST_BIN}/snmp.yml
+    rm -f ${HOST_BIN}/snmp.yml
 fi
 
 #Replace openVPN config
 if [[ ${USE_OVPN} == true ]]; then
     cp ./openvpn.conf.secret ${HOST_BIN}
 else
-    rm ${HOST_BIN}/openvpn.conf.secret
+    rm -f ${HOST_BIN}/openvpn.conf.secret
 fi
 
 #3. Commit and push ansible-repo
@@ -384,7 +384,7 @@ copy-in git_token.secret /boot
 EOF
 
 if [[ ${USE_OVPN} == true ]]; then
-    cat <<EOF > edgeflex.fish
+    cat <<EOF >> edgeflex.fish
     mkdir /boot/openvpn/
     copy-in openvpn.conf /boot/openvpn 
 EOF
