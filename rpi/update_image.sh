@@ -76,7 +76,7 @@ do
     case "${opt}" in
         I) IMAGE_FILE=${OPTARG};;
         C) OVPN_CERT_FILE=${OPTARG} ;;
-        S) ${USE_SNMP}=true ;;
+        S) USE_SNMP=true ;;
         N) NODENAME=${OPTARG} ;;
         y) ASK_CONFIRM=false ;;
         d) DEBUG=true ;;
@@ -110,9 +110,9 @@ fi
 
 #Check if OVPN cert file has been supplied and is valid
 if [ -z ${OVPN_CERT_FILE} ]; then
-    $USE_OVPN=false
+    USE_OVPN=false
 else
-    $USE_OVPN=true
+    USE_OVPN=true
     if ! [[ -r ${OVPN_CERT_FILE} ]]; then
         echo "OVPN cert file '${OVPN_CERT_FILE}' does not exist"
         usage
@@ -154,15 +154,21 @@ echo "Gathered following configuration:"
 echo "Nodename:     ${NODENAME}"
 echo "Image:        ${IMAGE_FILE}"
 
-if ! [ ${USE_OVPN} ]; then
+if [[ ${USE_OVPN} == true ]]; then
     echo "OpenVPN Cert: ${OVPN_CERT_FILE}"
 else
     echo "Not using OpenVPN"
 fi
 
 echo "Config:       ${CONFIG_PATH}"
-echo "Git User:     ${GIT_USERNAME}"
+if [[ ${USE_SNMP} == true ]]; then
+    echo "Creating SNMP files"
+else
+    echo "No SNMP"
+fi
 
+
+echo "Git User:     ${GIT_USERNAME}"
 if [[ -n ${PMU_GIT_BRANCH} ]]; then
     echo "Branch:       ${PMU_GIT_BRANCH}"
 fi
