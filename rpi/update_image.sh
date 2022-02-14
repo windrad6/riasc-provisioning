@@ -6,8 +6,21 @@ SCRIPT_OWNER=$(stat -c '%U' ${SCRIPT_PATH})
 pushd ${SCRIPT_PATH}
 
 #====================== Required Packages ========================
-#jq, ansible-vault (ansible), pass
+#jq, ansible-vault (ansible), pass, gpg, curl, guestfish, git
+function check_command() {
+	if ! command -v $1 &> /dev/null; then
+		echo "$1 could not be found"
+		exit
+	fi
+}
 
+check_command jq
+check_command ansible-vault
+check_command pass
+check_command curl
+check_command gpg
+check_command git
+check_command guestfish
 
 #======================= Predefined settings =====================
 CONFIG_FILE="riasc.edgeflex.yaml"
