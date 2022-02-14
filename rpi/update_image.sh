@@ -12,6 +12,8 @@ pushd ${SCRIPT_PATH}
 #======================= Predefined settings =====================
 CONFIG_FILE="riasc.edgeflex.yaml"
 SSL_SEARCH_PATH="./ssl"
+USE_SNMP=false
+USE_OVPN=false
 ASK_CONFIRM=true
 UPDATE=false
 DEBUG=false
@@ -43,7 +45,8 @@ usage(){
     echo "  -I  [Path to Image:                 -I /path/to/image/]"
     echo "  -N  [Hostname to use:               -N name]"
     echo "  -B  [Git branch for ansible repo    -B development]"
-    echo "  -S  [Path to SSL Cert:              -S /path/to/cert]"
+    echo "  -C  [Path to OpenVPN Cert:          -C /path/to/cert]"
+    echo "  -S  [Create SNMP config]"
     echo "  -y  [Dont ask for confirmations]"
     echo "  -d  [Debug mode. Dont delete temp files. Dont push to Repos]"
     echo "  -u  [Update mode. Dont delete temp files but push to Repos]"
@@ -55,11 +58,12 @@ usage(){
 }
 
 
-while getopts ":I:N:B:S:U::P::ydu" opt
+while getopts ":I:N:B:C::SU::P::ydu" opt
 do
     case "${opt}" in
         I) IMAGE_FILE=${OPTARG};;
-        S) SSL_CERT_FILE=${OPTARG} ;;
+        C) OVPN_CERT_FILE=${OPTARG} ;;
+        S) ${USE_SNMP}=true ;;
         N) NODENAME=${OPTARG} ;;
         y) ASK_CONFIRM=false ;;
         d) DEBUG=true ;;
@@ -91,10 +95,15 @@ if ! [[ -n ${NODENAME} ]]; then
     usage
 fi
 
-#Ensure SSL cert file is found
-if ! [[ -r ${SSL_CERT_FILE} ]]; then
-    echo "SSL cert file '${SSL_CERT_FILE}' does not exist"
-    usage
+#Check if OVPN cert file has been supplied and is valid
+if [ -z ${OVPN_CERT_FILE} ]; then
+    $USE_OVPN=false
+else
+    $USE_OVPN=true
+    if ! [[ -r ${OVPN_CERT_FILE} ]]; then
+        echo "OVPN cert file '${OVPN_CERT_FILE}' does not exist"
+        usage
+    fi
 fi
 
 #Ensure default config is found
@@ -131,7 +140,13 @@ fi
 echo "Gathered following configuration:"
 echo "Nodename:     ${NODENAME}"
 echo "Image:        ${IMAGE_FILE}"
-echo "SSL_CERT:     ${SSL_CERT_FILE}"
+
+if ! [ ${USE_OVPN} ]; then
+    echo "OpenVPN Cert: ${OVPN_CERT_FILE}"
+else
+    echo "Not using OpenVPN"
+fi
+
 echo "Config:       ${CONFIG_PATH}"
 echo "Git User:     ${GIT_USERNAME}"
 
@@ -169,7 +184,9 @@ mkdir ${NODENAME}
 echo "Copying files"
 NODE_IMAGE_FILE="${NODENAME}_IMAGE"
 cp ${IMAGE_FILE} "${NODENAME}/${NODE_IMAGE_FILE}.img"
-cp ${SSL_CERT_FILE} "${NODENAME}/acs-lab.conf"
+if [[ ${USE_OVPN} == true ]]; then
+    cp ${OVPN_CERT_FILE} "${NODENAME}/openvpn.conf"
+fi
 cp ${CONFIG_PATH} "${NODENAME}/riasc.yaml"
 cp "user-data" "${NODENAME}/user-data"
 echo "Done"
@@ -265,10 +282,14 @@ echo "Done"
 #============================== Edit Files in git repo =============================
 
 #1. Encrypt with ansible
-#OpenVPN.
-ansible-vault encrypt --vault-password-file ./vaultkey.secret acs-lab.conf --output acs-lab.conf.secret
+#OpenVPN
+if [[ ${USE_OVPN} == true ]]; then
+    ansible-vault encrypt --vault-password-file ./vaultkey.secret openvpn.conf --output openvpn.conf.secret
+fi
 #SNMP
-SNMP_PASS_VAULT=$(ansible-vault encrypt_string --vault-password-file ./vaultkey.secret --name SNMP_PASS ${SNMP_PASS})
+if [[ ${USE_SNMP} == true ]]; then
+    SNMP_PASS_VAULT=$(ansible-vault encrypt_string --vault-password-file ./vaultkey.secret --name SNMP_PASS ${SNMP_PASS})
+fi
 
 #2. Write variables to ansible-repo
 #make sure host bin exists
@@ -278,13 +299,22 @@ if ! [[ -d ${HOST_BIN} ]]; then
 fi
 
 #Replace SNMP Pass
-cat <<EOF > ./${GIT_ANSIBLE_REPO_NAME}/inventory/edgeflex/host_vars/${NODENAME}/snmp.yml
-${SNMP_PASS_VAULT}
-SNMP_USR: ${NODENAME}
+if [[ ${USE_OVPN} == true ]]; then
+    cat <<EOF > ./${GIT_ANSIBLE_REPO_NAME}/inventory/edgeflex/host_vars/${NODENAME}/snmp.yml
+    ${SNMP_PASS_VAULT}
+    SNMP_USR: ${NODENAME}
 EOF
+else
+    #Loesche alte SNMP config if it exists to not confuse ansible
+    rm ${HOST_BIN}/snmp.yml
+fi
 
 #Replace openVPN config
-cp ./acs-lab.conf.secret ${HOST_BIN}
+if [[ ${USE_OVPN} == true ]]; then
+    cp ./openvpn.conf.secret ${HOST_BIN}
+else
+    rm ${HOST_BIN}/openvpn.conf.secret
+fi
 
 #3. Commit and push ansible-repo
 pushd ${GIT_ANSIBLE_REPO_NAME}
@@ -332,10 +362,14 @@ copy-in riasc.yaml /boot
 copy-in user-data /boot
 copy-in vaultkey.secret /boot
 copy-in git_token.secret /boot
-
-mkdir /boot/openvpn/
-copy-in acs-lab.conf /boot/openvpn
 EOF
+
+if [[ ${USE_OVPN} == true ]]; then
+    cat <<EOF > edgeflex.fish
+    mkdir /boot/openvpn/
+    copy-in openvpn.conf /boot/openvpn 
+EOF
+fi
 
 #2. Write patch to image
 echo "Patching image with guestfish..."
@@ -353,7 +387,9 @@ guestfish < edgeflex.fish
 #4. Clean up
 if [[ ${DEBUG} == false ]] && [[ ${UPDATE} == false ]]; then
     echo "removing files"
-    rm "acs-lab.conf"
+    if [[ ${USE_OVPN} == true ]]; then
+        rm "openvpn.conf"
+    fi
     rm "edgeflex.fish"
     rm "riasc.yaml"
     rm "user-data"
