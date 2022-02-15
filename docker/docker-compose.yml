@@ -1,0 +1,11 @@
+version: "3.9"
+services:
+  img_create:
+    test: "Hallo"
+    build: .    
+    tty: true 
+    volumes:
+      - ./ssl:/edgepmu/ssl
+      - ./output:/edgepmu/output
+    command:
+      /bin/bash ${test}"
