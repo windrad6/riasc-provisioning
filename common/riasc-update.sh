@@ -156,7 +156,7 @@ if [ $(config '.ansible.verify_commit') == "true" ]; then
 	ANSIBLE_OPTS+="--verify-commit"
 fi
 
-if ! [ -z $(config '.ansible.branch') ]; then
+if ! [ $(config '.ansible.branch') = null ]; then
 	ANSIBLE_OPTS+=" --checkout $(config '.ansible.branch')"
 fi
 

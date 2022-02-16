@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x
 
 SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
 SCRIPT_OWNER=$(stat -c '%U' ${SCRIPT_PATH})
@@ -216,7 +217,8 @@ pushd ${NODENAME}
 #4. Make sure repos are here
 echo "Cloning GIT repos"
 git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_PASS_REPO}"
-git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_ANSIBLE_REPO}" -b ${PMU_GIT_BRANCH:main}
+echo ${PMU_GIT_BRANCH}
+git clone "https://${GIT_USERNAME}:${GIT_PASS}@${GIT_ANSIBLE_REPO}" -b ${PMU_GIT_BRANCH:-master}
 pass_cmd git init #tell pass we want to create commits when working with passwords
 echo "Done"
 
