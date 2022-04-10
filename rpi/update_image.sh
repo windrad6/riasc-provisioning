@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-set -x
+
 
 SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
 SCRIPT_OWNER=$(stat -c '%U' ${SCRIPT_PATH})
@@ -245,7 +245,8 @@ if [[ -r ${GIT_PASS_REPO_NAME}/${NODENAME}.gpg ]]; then
     pass_cmd mv ${NODENAME} "old/${NODENAME}_$(date '+%Y-%m-%d_%H:%M:%S')" 
 fi
 
-VAULT_KEY=$(pass_cmd generate ${NODENAME} -n 20 | tail -1) #TODO: this is not a pretty way to do this...
+VAULT_KEY=$(pass_cmd generate ${NODENAME} -n 20 | tail -1 | sed -r "s/\x1B\[([0-9]{1,3}((;[0-9]{1,3})*)?)?[m|K]//g" ) #TODO: this is not a pretty way to do this...
+#SED curtesy of: https://gist.github.com/stevenh512/2245881
 
 cat <<EOF > vaultkey.secret
 #!/bin/bash
