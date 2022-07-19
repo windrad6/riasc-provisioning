@@ -34,7 +34,7 @@ DEBUG=false
 
 GIT_SERVER="git.rwth-aachen.de"
 GIT_USE_KEY=false
-GIT_MIN_ACCESS_LEVEL=40
+GIT_MIN_ACCESS_LEVEL=30
 
 GIT_ANSIBLE_REPO_NAME="pmu-ansible"
 GIT_ANSIBLE_REPO_ID=61980
@@ -229,7 +229,7 @@ touch ${PASS_GPG_KEYRING}
 chmod 600 ${PASS_GPG_DIR}/*
 chmod 700 ${PASS_GPG_DIR}
 
-gpg ${PASS_GPG_OPTIONS} --import $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.acs)
+gpg ${PASS_GPG_OPTIONS} --import $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.asc)
 for keyfile in $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.acs| xargs basename -a -s .acs); do
     echo "${keyfile}:6:" | gpg ${PASS_GPG_OPTIONS} --import-ownertrust;
 done
