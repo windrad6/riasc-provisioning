@@ -230,7 +230,7 @@ chmod 600 ${PASS_GPG_DIR}/*
 chmod 700 ${PASS_GPG_DIR}
 
 gpg ${PASS_GPG_OPTIONS} --import $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.asc)
-for keyfile in $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.acs| xargs basename -a -s .acs); do
+for keyfile in $(ls -1 ${GIT_PASS_REPO_NAME}/keys/*.asc| xargs basename -a -s .asc); do
     echo "${keyfile}:6:" | gpg ${PASS_GPG_OPTIONS} --import-ownertrust;
 done
 echo "Done"
