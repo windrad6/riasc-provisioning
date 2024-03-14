@@ -3,29 +3,47 @@
 set -e
 
 SCRIPT_PATH=$(dirname $(realpath "${BASH_SOURCE[0]}"))
-pushd ${SCRIPT_PATH}
+cd "${SCRIPT_PATH}"
 
 # Settings
 NODENAME="${NODENAME:-riasc-agent}"
 TOKEN="${TOKEN:-XXXXX}"
 
-FLAVOR=${FLAVOR:-erigrid}
+DOWNLOAD_FOLDER="/tmp/download/"
+OUTPUT_FOLDER="/tmp/output/"
+IMG_FOLDER="/tmp/images/"
+WORKDIR="/tmp/"
+REPOFOLDER="/tmp/blubber/"
+
+FLAVOR=${FLAVOR:-raspios}
 
 case ${FLAVOR} in
-	edgeflex)
+	ubuntu22.04)
 		OS="ubuntu"
 		;;
-
-	erigrid)
+	ubuntu20.04)
+		OS="ubuntu"
+		;;
+	raspios)
 		OS="raspios"
+		;;
+	*)
+		echo "Flavor $FLAVOR not known!"
+		exit 0
 		;;
 esac
 
-case ${OS} in
-	ubuntu)
+case ${FLAVOR} in
+	ubuntu20.04)
 		IMAGE_FILE="ubuntu-20.04.2-preinstalled-server-arm64+raspi"
 		IMAGE_SUFFIX="img.xz"
 		IMAGE_URL="https://cdimage.ubuntu.com/releases/20.04.2/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
+		;;
+
+	ubuntu22.04)
+		IMAGE_FILE="ubuntu-22.04.4-preinstalled-server-arm64+raspi"
+		IMAGE_SUFFIX="img.xz"
+		IMAGE_URL="https://cdimage.ubuntu.com/releases/22.04/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
 		;;
 
 	raspios)
@@ -38,7 +56,7 @@ esac
 RIASC_IMAGE_FILE="$(date +%Y-%m-%d)-riasc-${OS}"
 
 function check_command() {
-	if ! command -v $1 &> /dev/null; then
+	if ! command -v "$1" &> /dev/null; then
 		echo "$1 could not be found"
 		exit
 	fi
@@ -59,37 +77,44 @@ check_command xz
 # apt-get install libguestfs-tools wget unzip zip xz-utils
 
 # Download image
-if [ ! -f ${IMAGE_FILE}.${IMAGE_SUFFIX} ]; then
+cd ${DOWNLOAD_FOLDER}
+if [ ! -f "${IMAGE_FILE}"."${IMAGE_SUFFIX}" ]; then
 	echo "Downloading image..."
-	wget ${IMAGE_URL}
+	wget "${IMAGE_URL}"
+else
+	echo "${IMAGE_FILE}.${IMAGE_SUFFIX} exists skipping download"
 fi
 
+
 # Unzip image
-if [ ! -f ${IMAGE_FILE}.img ]; then
+cd ${IMG_FOLDER}
+
+if [ ! -f "${IMAGE_FILE}".img ]; then
 	echo "Unzipping image..."
 	case ${IMAGE_SUFFIX} in
 		img.xz)
-			unxz --keep --threads=0 ${IMAGE_FILE}.${IMAGE_SUFFIX}
+			unxz --keep --threads=0 ${DOWNLOAD_FOLDER}/"${IMAGE_FILE}"."${IMAGE_SUFFIX}"
+			mv ${DOWNLOAD_FOLDER}/"${IMAGE_FILE}".img ./
 			;;
 		zip)
-			unzip ${IMAGE_FILE}.${IMAGE_SUFFIX}
+			unzip "${DOWNLOAD_FOLDER}"/"${IMAGE_FILE}"."${IMAGE_SUFFIX}"
 			;;
 	esac
+else
+	echo "${IMAGE_FILE}.img exists skipping unpack"
 fi
 
 echo "Copying image..."
-cp ${IMAGE_FILE}.img ${RIASC_IMAGE_FILE}.img
+cd ${WORKDIR}
+
+cp ${IMG_FOLDER}/"${IMAGE_FILE}".img "${RIASC_IMAGE_FILE}".img
 
 # Prepare config
-case ${FLAVOR} in
-	erigrid)
-		CONFIG_FILE="riasc.yaml"
-		;;
-	*)
-		CONFIG_FILE="riasc.${FLAVOR}.yaml"
-		;;
-esac
-cp ../common/${CONFIG_FILE} riasc.yaml
+
+
+CONFIG_FILE="riasc.${OS}.yaml"
+
+cp ${REPOFOLDER}/common/${CONFIG_FILE} riasc.yaml
 
 # Patch config
 sed -i \
@@ -106,7 +131,7 @@ EOF
 # Download PGP keys for verifying Ansible Git commits
 echo "Download PGP keys..."
 mkdir -p keys
-wget -O keys/steffen-vogel.asc https://keys.openpgp.org/vks/v1/by-fingerprint/09BE3BAE8D55D4CD8579285A9675EAC34897E6E2 # Steffen Vogel (RWTH)
+#wget -O keys/xxx.asc https://xxx
 
 # Patching image
 cat <<EOF > patch.fish
@@ -127,17 +152,17 @@ echo "Available space:"
 df-h
 
 echo "Copy files into image..."
-copy-in rootfs/etc/ /
-copy-in riasc.yaml /boot
+copy-in ${REPOFOLDER}/rpi/rootfs/etc/ /
+copy-in ${WORKDIR}/riasc.yaml /boot
 
 mkdir-p /etc/systemd/timesyncd.conf.d/
-copy-in fallback-ntp.conf /etc/systemd/timesyncd.conf.d/
+copy-in ${REPOFOLDER}/rpi/fallback-ntp.conf /etc/systemd/timesyncd.conf.d/
 
 mkdir-p /usr/local/bin
-copy-in ../common/riasc-update.sh ../common/riasc-set-hostname.sh /usr/local/bin/
+copy-in ${REPOFOLDER}/common/riasc-update.sh ${REPOFOLDER}/common/riasc-set-hostname.sh /usr/local/bin/
 glob chmod 755 /usr/local/bin/riasc-*.sh
 
-copy-in keys/ /boot/
+copy-in ${REPOFOLDER}/rpi/keys/ /boot/
 
 echo "Disable daily APT timers"
 rm /etc/systemd/system/timers.target.wants/apt-daily-upgrade.timer
@@ -152,7 +177,7 @@ EOF
 case ${OS} in
 	ubuntu)
 cat <<EOF >> patch.fish
-copy-in user-data /boot
+copy-in ${REPOFOLDER}/rpi/user-data /boot
 EOF
 		;;
 	*)
@@ -170,7 +195,7 @@ EOF
 		;;
 esac
 
-if [ "${FLAVOR}" = "edgeflex" -a "${OS}" = "ubuntu" ]; then
+if [ "${OS}" = "ubuntu" ]; then
 cat <<EOF >> patch.fish
 echo "Disable Grub boot"
 write-append /boot/usercfg.txt "[all]\ninitramfs initrd.img followkernel\nkernel=vmlinuz\n"
@@ -183,8 +208,8 @@ guestfish < patch.fish
 
 # Zip image
 echo "Zipping image..."
-rm -f ${RIASC_IMAGE_FILE}.zip
-zip ${RIASC_IMAGE_FILE}.zip ${RIASC_IMAGE_FILE}.img
+rm -f "${RIASC_IMAGE_FILE}".zip
+zip ${OUTPUT_FOLDER}/"${RIASC_IMAGE_FILE}".zip "${RIASC_IMAGE_FILE}".img
 
 echo "Please write the new image to an SD card:"
 echo "  dd bs=1M if=${RIASC_IMAGE_FILE}.img of=/dev/sdX"

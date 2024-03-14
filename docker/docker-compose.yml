@@ -1,11 +1,15 @@
-version: "3.9"
+version: "3.7"
+
 services:
   img_create:
-    test: "Hallo"
+    environment:
+      - FLAVOR=ubuntu22.04
+      - REPOFOLDER=/tmp/blubber/
     build: .    
-    tty: true 
+    tty: true
     volumes:
-      - ./ssl:/edgepmu/ssl
-      - ./output:/edgepmu/output
-    command:
-      /bin/bash ${test}"
+      - ./download:/tmp/download
+      - ../rpi:/tmp/blubber/rpi
+      - ../common:/tmp/blubber/common
+      - ./output:/tmp/output
+      - ./images:/tmp/images
