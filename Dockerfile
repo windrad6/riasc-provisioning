@@ -1,13 +1,11 @@
-from ubuntu:22.04
+FROM ubuntu:22.04
 
 #Get dependencies
-RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
-RUN apt-get install -y jq ansible pass curl gpg git wget unzip zip
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC  apt update && apt-get -y install tzdata
 ENV LIBGUESTFS_BACKEND=direct
 
 WORKDIR /tmp
-RUN apt-get update && apt-get install --no-install-recommends -y libguestfs-tools qemu-utils linux-image-generic
+RUN apt-get install --no-install-recommends --no-install-suggests -y libguestfs-tools qemu-utils linux-image-generic wget unzip zip
 # RUN git clone https://github.com/cl0-de/riasc-provisioning.git -b development
 ENV FLAVOR=raspios
 ENV REPOFOLDER=/tmp

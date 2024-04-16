@@ -1,3 +1,2 @@
-docker/download/*
-docker/images/*
-docker/output/*
+out/*
+env

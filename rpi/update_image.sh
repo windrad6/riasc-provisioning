@@ -282,7 +282,7 @@ echo "Done"
 echo "Writing configuration"
 
 sed -i \
-	-e "s/edgepmu/${NODENAME}/g" \
+	-e "s/exampleHostname/${NODENAME}/g" \
 	riasc.yaml
 
 #Select branch

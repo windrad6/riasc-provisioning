@@ -1,5 +1,41 @@
 # RIasC Provisioning Scripts
 
+
+## Usage
+
+switch to directory docker 
+```
+docker build --tag "imagebuilder" .
+```
+run docker run 
+```
+docker run \
+--volume ./rpi:/tmp/rpi \
+--volume ./common:/tmp/common \
+--volume ./out/output:/tmp/output \
+--volume ./out/images:/tmp/images \
+--volume ./out/download:/tmp/download \
+--env-file ./env \
+imagebuilder
+```
+Create `env` file:
+```
+GIT_URL=https://mygiturl
+FLAVOR=ubuntu22.04
+REPOFOLDER=/tmp/
+GIT_BRANCH=mybranch
+GIT_TOKEN=mytoken
+NODENAME=myhost
+```
+
+List of available variables
+
+Optional varaibles
+
+Help
+mount ubuntu-22.04.4-preinstalled-server-arm64+raspi.img -o loop,offset=$(( 512 * 526336)) /mnt/
+fdisk -lu ubuntu-22.04.4-preinstalled-server-arm64+raspi.img
+
 [![GitHub](https://img.shields.io/github/license/ERIGrid2/riasc-provisioning)](https://github.com/ERIGrid2/riasc-provisioning/blob/master/LICENSE)
 
 - **Based on:** <https://github.com/k3s-io/k3s-ansible>

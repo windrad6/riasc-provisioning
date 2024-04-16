@@ -3,7 +3,7 @@
 # See also: https://erigrid2.github.io/riasc/docs/setup/config
 
 # A unique hostname to identify the node
-hostname: edgepmu
+hostname: dummyHostname
 
 ansible:
   # List of PGP keys which are used to verify the commits in the Ansible repo
@@ -12,7 +12,7 @@ ansible:
   keyserver: keys.openpgp.org
 
   # A repository containing ansible playbooks which will be fetched via ansible-pull
-  url: https://git.rwth-aachen.de/acs/public/software/pmu/pmu-ansible.git
+  url: dummyGitUrl
 
   verify_commit: false
 

@@ -13,7 +13,7 @@ DOWNLOAD_FOLDER="/tmp/download/"
 OUTPUT_FOLDER="/tmp/output/"
 IMG_FOLDER="/tmp/images/"
 WORKDIR="/tmp/"
-REPOFOLDER="/tmp/blubber/"
+REPOFOLDER="${REPOFOLDER:-/tmp/}"
 
 FLAVOR=${FLAVOR:-raspios}
 
@@ -65,6 +65,11 @@ function check_command() {
 # Show config
 echo "Using hostname: ${NODENAME}"
 echo "Using token: ${TOKEN}"
+echo "Using flavor: ${FLAVOR}"
+echo "Using temp folder: ${REPOFOLDER}"
+echo "Using repo: ${GIT_URL}"
+echo "Using branch: ${GIT_BRANCH}"
+echo "Using token: ${GIT_TOKEN}"
 
 # Check that required commands exist
 echo "Check if required commands are installed..."
@@ -80,7 +85,9 @@ check_command xz
 cd ${DOWNLOAD_FOLDER}
 if [ ! -f "${IMAGE_FILE}"."${IMAGE_SUFFIX}" ]; then
 	echo "Downloading image..."
-	wget "${IMAGE_URL}"
+	wget \
+  		--progress=bar:force \
+		"${IMAGE_URL}"
 else
 	echo "${IMAGE_FILE}.${IMAGE_SUFFIX} exists skipping download"
 fi
@@ -114,13 +121,27 @@ cp ${IMG_FOLDER}/"${IMAGE_FILE}".img "${RIASC_IMAGE_FILE}".img
 
 CONFIG_FILE="riasc.${OS}.yaml"
 
-cp ${REPOFOLDER}/common/${CONFIG_FILE} riasc.yaml
+cp "${REPOFOLDER}"/common/${CONFIG_FILE} riasc.yaml
 
 # Patch config
 sed -i \
 	-e "s/XXXXX/${TOKEN}/g" \
-	-e "s/riasc-agent/${NODENAME}/g" \
+	-e "s/dummyHostname/${NODENAME}/g" \
 	riasc.yaml
+
+#Select branch
+if [[ -n ${GIT_BRANCH} ]]; then
+    sed -i \
+    	-e "/url: /a\\  branch: ${GIT_BRANCH}" \
+		riasc.yaml
+fi
+
+#Git token
+if [[ -n ${GIT_TOKEN} ]]; then
+	sed -i \
+		-e "s,dummyGitUrl,riasc:${GIT_TOKEN}@${GIT_URL},g" \
+		riasc.yaml
+fi
 
 # Prepare systemd-timesyncd config
 cat > fallback-ntp.conf <<EOF
@@ -132,7 +153,7 @@ EOF
 echo "Download PGP keys..."
 mkdir -p keys
 #wget -O keys/xxx.asc https://xxx
-
+echo "repofolder ${REPOFOLDER}"
 # Patching image
 cat <<EOF > patch.fish
 echo "Loading image..."
@@ -210,6 +231,7 @@ guestfish < patch.fish
 echo "Zipping image..."
 rm -f "${RIASC_IMAGE_FILE}".zip
 zip ${OUTPUT_FOLDER}/"${RIASC_IMAGE_FILE}".zip "${RIASC_IMAGE_FILE}".img
+chmod o+w ${OUTPUT_FOLDER}/"${RIASC_IMAGE_FILE}".zip
 
 echo "Please write the new image to an SD card:"
 echo "  dd bs=1M if=${RIASC_IMAGE_FILE}.img of=/dev/sdX"
