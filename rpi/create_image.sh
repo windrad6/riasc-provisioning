@@ -9,13 +9,22 @@ cd "${SCRIPT_PATH}"
 NODENAME="${NODENAME:-riasc-agent}"
 TOKEN="${TOKEN:-XXXXX}"
 
-DOWNLOAD_FOLDER="/tmp/download/"
-OUTPUT_FOLDER="/tmp/output/"
-IMG_FOLDER="/tmp/images/"
+DOWNLOAD_FOLDER="/tmp/data/download/"
+OUTPUT_FOLDER="/tmp/data/output/"
+IMG_FOLDER="/tmp/data/images/"
 WORKDIR="/tmp/"
-REPOFOLDER="${REPOFOLDER:-/tmp/}"
-
+REPOFOLDER="/tmp/riasc/"
 FLAVOR=${FLAVOR:-raspios}
+
+if [ ! -d "$DOWNLOAD_FOLDER" ]; then
+	mkdir ${DOWNLOAD_FOLDER}
+fi
+if [ ! -d "$OUTPUT_FOLDER" ]; then
+	mkdir ${OUTPUT_FOLDER}
+fi
+if [ ! -d "$IMG_FOLDER" ]; then
+	mkdir ${IMG_FOLDER}
+fi
 
 case ${FLAVOR} in
 	ubuntu22.04)
@@ -53,7 +62,7 @@ case ${FLAVOR} in
 		;;
 esac
 
-RIASC_IMAGE_FILE="$(date +%Y-%m-%d)-riasc-${OS}"
+RIASC_IMAGE_FILE="$(date +%Y-%m-%d)-riasc-${NODENAME}${TAG}"
 
 function check_command() {
 	if ! command -v "$1" &> /dev/null; then
@@ -66,7 +75,6 @@ function check_command() {
 echo "Using hostname: ${NODENAME}"
 echo "Using token: ${TOKEN}"
 echo "Using flavor: ${FLAVOR}"
-echo "Using temp folder: ${REPOFOLDER}"
 echo "Using repo: ${GIT_URL}"
 echo "Using branch: ${GIT_BRANCH}"
 echo "Using token: ${GIT_TOKEN}"
@@ -129,6 +137,13 @@ sed -i \
 	-e "s/dummyHostname/${NODENAME}/g" \
 	riasc.yaml
 
+if [ "${OS}" = "ubuntu" ]; then
+	cp "${REPOFOLDER}"/rpi/user-data ${WORKDIR}/
+	sed -i \
+		-e "s/dummyHostname/${NODENAME}/g" \
+		user-data
+fi
+
 #Select branch
 if [[ -n ${GIT_BRANCH} ]]; then
     sed -i \
@@ -142,6 +157,21 @@ if [[ -n ${GIT_TOKEN} ]]; then
 		-e "s,dummyGitUrl,riasc:${GIT_TOKEN}@${GIT_URL},g" \
 		riasc.yaml
 fi
+
+#Generate ansible secret
+if [ ! -f ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret ]; then
+	echo "Generate ansible secret"
+	VAULT_KEY=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20; echo)
+cat <<EOF > ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret
+#!/bin/bash
+echo "${VAULT_KEY}"
+EOF
+	chmod +x ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret
+else
+	echo "Skip ansible secret generation use existing key"
+fi
+cp ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret ${WORKDIR}/vaultkey.secret
+
 
 # Prepare systemd-timesyncd config
 cat > fallback-ntp.conf <<EOF
@@ -175,6 +205,7 @@ df-h
 echo "Copy files into image..."
 copy-in ${REPOFOLDER}/rpi/rootfs/etc/ /
 copy-in ${WORKDIR}/riasc.yaml /boot
+copy-in ${WORKDIR}/vaultkey.secret /boot
 
 mkdir-p /etc/systemd/timesyncd.conf.d/
 copy-in ${REPOFOLDER}/rpi/fallback-ntp.conf /etc/systemd/timesyncd.conf.d/
@@ -198,7 +229,7 @@ EOF
 case ${OS} in
 	ubuntu)
 cat <<EOF >> patch.fish
-copy-in ${REPOFOLDER}/rpi/user-data /boot
+copy-in ${WORKDIR}/user-data /boot
 EOF
 		;;
 	*)
@@ -226,6 +257,10 @@ fi
 echo "Patching image with guestfish..."
 guestfish < patch.fish
 
+if [ "${RAW_OUTPOUT}" = "yes" ]; then
+	echo "Copy raw image..."
+	cp "${RIASC_IMAGE_FILE}".img ${OUTPUT_FOLDER}/
+fi
 
 # Zip image
 echo "Zipping image..."

@@ -13,4 +13,4 @@ ENV REPOFOLDER=/tmp
 # ENV LIBGUESTFS_TRACE=1
 # RUN ./riasc-provisioning/rpi/create_image.sh
 
-CMD ${REPOFOLDER}/rpi/create_image.sh
+CMD ${REPOFOLDER}/riasc/rpi/create_image.sh

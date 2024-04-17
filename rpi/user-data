@@ -22,7 +22,7 @@ ssh_pwauth: true
 
 locale: C.UTF-8
 timezone: Europe/Berlin
-hostname: exampleHost
+hostname: dummyHostname
 
 ## Run arbitrary commands at rc.local like time
 runcmd:

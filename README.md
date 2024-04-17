@@ -1,103 +1,87 @@
-# RIasC Provisioning Scripts
+# Raspberry PI Image generation
+
+This project generates and customizes a Raspberry Pi image, either for Ubuntu or Raspberry Pi OS. The script is build for running within a docker container.
+
+The customizations include:
+* Generating or adding a `vaultkey.secret` file
+* Updating Ansible configuration in `/boot/firmware/riasc.yaml`
+* Updating cloud-init file in `/boot/firmware/user-data`
+* Setting GIT Ansible repor in `/boot/firmware/riasc.yaml`
+* Adding and enabling GIT based Ansible updates on reboot
 
 
 ## Usage
 
-switch to directory docker 
+1) Switch to direcory with Dockerfile to build image
 ```
 docker build --tag "imagebuilder" .
 ```
-run docker run 
-```
-docker run \
---volume ./rpi:/tmp/rpi \
---volume ./common:/tmp/common \
---volume ./out/output:/tmp/output \
---volume ./out/images:/tmp/images \
---volume ./out/download:/tmp/download \
---env-file ./env \
-imagebuilder
-```
-Create `env` file:
+2) Create `env` file:
 ```
 GIT_URL=https://mygiturl
 FLAVOR=ubuntu22.04
-REPOFOLDER=/tmp/
 GIT_BRANCH=mybranch
 GIT_TOKEN=mytoken
 NODENAME=myhost
+TAG=test
 ```
+3) Run docker container to generate image
+```
+docker run \
+--volume ./:/tmp/riasc \
+--volume ./out/:/tmp/data \
+--env-file ./env \
+imagebuilder
+```
+4) Image is placed in ´out/output´ folder
+5) Copy image to SD card. Either using dd or the Raspberry Pi Imiger
 
-List of available variables
 
-Optional varaibles
+## List of available variables
+| Variable | Info |
+| - | - |
+|GIT_URL | URL to ansible git repository|
+|FLAVOR | Falvor of os. See list of flavors|
+|GIT_BRANCH | Branch used in ansible git pull|
+|GIT_TOKEN | Token unsed in ansible git pull|
+|NODENAME | The hostname of the device|
+|TAG | A tag that is added to the name|
+|RAW_OUTPOUT | Set to yes to get the .img file as output|
+|TOKEN | A token used by Ansible|
 
-Help
-mount ubuntu-22.04.4-preinstalled-server-arm64+raspi.img -o loop,offset=$(( 512 * 526336)) /mnt/
-fdisk -lu ubuntu-22.04.4-preinstalled-server-arm64+raspi.img
+### List of flavors
+
+ubuntu22.04
+
+ubuntu20.04
+
+raspios
+
+
+# Help
+
+## How to mount the generated image to check the content?
+
+Check for the partitions in the image file:
+
+`fdisk -lu ubuntu-22.04.4-preinstalled-server-arm64+raspi.img`
+
+Run mount command. Make sure to update the offset (526336) for the correct value
+
+`mount ubuntu-22.04.4-preinstalled-server-arm64+raspi.img -o loop,offset=$(( 512 * 526336)) /mnt/`
+
+## How to add my custom secrets file for ansible vaults?
+Copy the file in `out/output`. and make sure that the name is NODENAME-vaultkey.secret
+
 
 [![GitHub](https://img.shields.io/github/license/ERIGrid2/riasc-provisioning)](https://github.com/ERIGrid2/riasc-provisioning/blob/master/LICENSE)
 
-- **Based on:** <https://github.com/k3s-io/k3s-ansible>
-
-## Introduction
-
-This fork of the RIasC Provisioning scripts is modified for the use with the edgePMU
-
-## Documentation
-
-For further documentation, please consult: https://riasc.eu/docs/
-
-## System requirements
-
-The scripts have been tested with the following operating systems:
-
-- Ubuntu 20.01
-
-## Initial Setup
-Before using this script, you will have to make sure that:
-1. The referenced git repositories in `update_image.sh` exist and you have sufficient access rights.
-2. Your ansible inventory is located at `{REPO}/inventory/edgeflex`
-3. You have created the host_vars directory in your inventory
-4. The password repository contains an initialized [*PASSWORD_STORE*](https://www.passwordstore.org/) with the subdirectories `keys` and `old`
-
-## Usage
-
-### 1. Creating an Image
-See: https://riasc.eu/docs/setup/agent/manual
-
-### 2. Updating an Image
-Before flashing the created image, the `update_image.sh` script will write and update the necessary configuration files to the boot partition of the image.
-
-Additionally, some of the configuration values are written into a git repository.
-
-To run the `update_image.sh` script, execute the script as **root** an follow the usage guide.
-
-i.e.
-```
-sudo ./update_image.sh -I PATH_TO_IMAGE_FROM_CREATE_IMAGE.SH -N edgepmuXX -B main -S ../../SSL/CERT -U your_git_username -P your_git_access_token
-```
-
-After the script has finished, the Image can be flashed to the Raspberry PI.
-
-**Warning:** Running this script will override (and backup) old credentials, etc
-
-### 3. Updating an edgePMU that is already flashed
-
-To update an edgePMU that is already flashed, run the `update_image.sh` script with the *-u* option. This will lead to the configuration files getting written to the image and temporary files for you to manually copy to the device in question via SCP.
-
-You will need to copy:
-1. The generated `vaultkey.secret` to `/boot/firmware/vaultkey.secret`
-2. The updated `riasc.yaml` to `/boot/firmware/riasc.yaml`
-3. The updated `user-data` to `/boot/firmware/user-data`
-4. The `git token` to `boot/firmware/git_token.secret`
-5. The updated `../common/riasc-update.sh` to `/usr/local/bin/riasc-update.sh`
-
-Other data such as new SNMP credentials or new vpn configuration files can be distributed via the pmu-ansible repo.
 
 ## Credits
 
 - [Steffen Vogel](https://github.com/stv0g) [📧](mailto:post@steffenvogel.de), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
+- [Vincent Bareiß]() [📧](mailto:), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
+- [Manuel Pitz](https://https://github.com/windrad6) [📧](mailto:post@cl0.de), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
 
 ### Funding acknowledment
 
