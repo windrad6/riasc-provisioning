@@ -21,7 +21,6 @@ docker build --tag "imagebuilder" .
 GIT_URL=https://mygiturl
 FLAVOR=ubuntu22.04
 GIT_BRANCH=mybranch
-GIT_TOKEN=mytoken
 NODENAME=myhost
 TAG=test
 ```
@@ -43,7 +42,6 @@ imagebuilder
 |GIT_URL | URL to ansible git repository|
 |FLAVOR | Falvor of os. See list of flavors|
 |GIT_BRANCH | Branch used in ansible git pull|
-|GIT_TOKEN | Token unsed in ansible git pull|
 |NODENAME | The hostname of the device|
 |TAG | A tag that is added to the name|
 |RAW_OUTPOUT | Set to yes to get the .img file as output|

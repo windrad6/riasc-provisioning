@@ -77,7 +77,6 @@ echo "Using token: ${TOKEN}"
 echo "Using flavor: ${FLAVOR}"
 echo "Using repo: ${GIT_URL}"
 echo "Using branch: ${GIT_BRANCH}"
-echo "Using token: ${GIT_TOKEN}"
 
 # Check that required commands exist
 echo "Check if required commands are installed..."
@@ -151,12 +150,10 @@ if [[ -n ${GIT_BRANCH} ]]; then
 		riasc.yaml
 fi
 
-#Git token
-if [[ -n ${GIT_TOKEN} ]]; then
-	sed -i \
-		-e "s,dummyGitUrl,riasc:${GIT_TOKEN}@${GIT_URL},g" \
-		riasc.yaml
-fi
+#Git url
+sed -i \
+	-e "s,dummyGitUrl,${GIT_URL},g" \
+	riasc.yaml
 
 #Generate ansible secret
 if [ ! -f ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret ]; then
