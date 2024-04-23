@@ -150,9 +150,17 @@ ANSIBLE_EXTRA_VARS="$(config --tojson --indent 0 .ansible.variables)"
 ANSIBLE_OPTS=" --url $(config .ansible.url)"
 ANSIBLE_OPTS+=" --inventory $(config .ansible.inventory)"
 ANSIBLE_OPTS+=" $(config '.ansible.extra_args // [ ] | join(" ")')"
+if [ -f /boot/firmware/vaultkey.secret ]; then
+    ANSIBLE_OPTS+=" --vault-password-file /boot/firmware/vaultkey.secret"
+fi
+
 
 if [ $(config '.ansible.verify_commit') == "true" ]; then
 	ANSIBLE_OPTS+="--verify-commit"
+fi
+
+if ! [ $(config '.ansible.branch') = null ]; then
+	ANSIBLE_OPTS+=" --checkout $(config '.ansible.branch')"
 fi
 
 # Run Ansible playbook
