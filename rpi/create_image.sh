@@ -27,6 +27,9 @@ if [ ! -d "$IMG_FOLDER" ]; then
 fi
 
 case ${FLAVOR} in
+	ubuntu24.04)
+		OS="ubuntu"
+		;;
 	ubuntu22.04)
 		OS="ubuntu"
 		;;
@@ -53,6 +56,12 @@ case ${FLAVOR} in
 		IMAGE_FILE="ubuntu-22.04.4-preinstalled-server-arm64+raspi"
 		IMAGE_SUFFIX="img.xz"
 		IMAGE_URL="https://cdimage.ubuntu.com/releases/22.04/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
+		;;
+
+	ubuntu24.04)
+		IMAGE_FILE="ubuntu-24.04-preinstalled-server-arm64+raspi"
+		IMAGE_SUFFIX="img.xz"
+		IMAGE_URL="https://cdimage.ubuntu.com/releases/24.04/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
 		;;
 
 	raspios)
