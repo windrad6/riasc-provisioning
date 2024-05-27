@@ -86,6 +86,9 @@ echo "Using token: ${TOKEN}"
 echo "Using flavor: ${FLAVOR}"
 echo "Using repo: ${GIT_URL}"
 echo "Using branch: ${GIT_BRANCH}"
+if [! -z "$VAULT_KEY" ]; then
+	echo "Using ansible secret ${VAULT_KEY}"
+fi
 
 # Check that required commands exist
 echo "Check if required commands are installed..."
@@ -166,8 +169,10 @@ sed -i \
 
 #Generate ansible secret
 if [ ! -f ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret ]; then
-	echo "Generate ansible secret"
-	VAULT_KEY=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20; echo)
+	if [ -z "$VAULT_KEY" ]; then
+		echo "Generate ansible secret"
+		VAULT_KEY=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 20; echo)
+	fi
 cat <<EOF > ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret
 #!/bin/bash
 echo "${VAULT_KEY}"
