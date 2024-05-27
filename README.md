@@ -46,8 +46,11 @@ imagebuilder
 |TAG | A tag that is added to the name|
 |RAW_OUTPOUT | Set to yes to get the .img file as output|
 |TOKEN | A token used by Ansible|
+|VAULT_KEY | Key to use in the vaultkey.secret file|
 
 ### List of flavors
+
+ubuntu24.04
 
 ubuntu22.04
 
@@ -69,8 +72,8 @@ Run mount command. Make sure to update the offset (526336) for the correct value
 `mount ubuntu-22.04.4-preinstalled-server-arm64+raspi.img -o loop,offset=$(( 512 * 526336)) /mnt/`
 
 ## How to add my custom secrets file for ansible vaults?
-Copy the file in `out/output`. and make sure that the name is NODENAME-vaultkey.secret
 
+To use a custom secret the VAULT_KEY variable can be set. If a vaultkey file of the name NODENAME-vaultkey.secret already exists the variable will be ignored.
 
 [![GitHub](https://img.shields.io/github/license/ERIGrid2/riasc-provisioning)](https://github.com/ERIGrid2/riasc-provisioning/blob/master/LICENSE)
 
