@@ -1,5 +1,5 @@
 [Unit]
-Description=Update RIasC
+Description=Heartbeat
 
 After=network-online.target
 After=getty@tty2.service
@@ -9,9 +9,9 @@ ConditionPathIsReadWrite=/etc
 
 [Service]
 Type=oneshot
-RemainAfterExit=yes
+RemainAfterExit=no
 
-ExecStart=/usr/local/bin/riasc-update.sh
+ExecStart=/usr/local/bin/heartbeat.sh
 
 StandardInput=tty
 TTYPath=/dev/tty2

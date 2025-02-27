@@ -1,0 +1,22 @@
+[Unit]
+Description=API Update
+
+After=network-online.target
+After=getty@tty2.service
+Wants=network-online.target
+
+ConditionPathIsReadWrite=/etc
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+
+ExecStart=/usr/local/bin/http_update.sh
+
+StandardInput=tty
+TTYPath=/dev/tty2
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+WantedBy=multi-user.target

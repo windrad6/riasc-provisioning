@@ -30,7 +30,7 @@ if [ -n "${TTY}" ] && (( ${FG_TTY} != ${TTY} )); then
 fi
 
 # Tee output to syslog
-exec 1> >(logger -st "riasc-update") 2>&1
+exec 1> >(logger -st "http-update") 2>&1
 
 # Detect distro
 if [ -f /etc/os-release ]; then # freedesktop.org and systemd
@@ -89,15 +89,28 @@ fi
 
 # Installing required packages
 log "Installing required packages"
-if ! command -v ansible &> /dev/null; then
+if ! command -v unzip &> /dev/null; then
 	case ${OS} in
 		Fedora|CentOS|'Red Hat Enterprise Linux')
-			yum --quiet --yes install ansible git
+			yum --quiet --yes install unzip
 			;;
 
 		Debian|Ubuntu|'Raspbian GNU/Linux')
 			apt-get -qq update
-			apt-get -qq install ansible git
+			apt-get -qq install unzip
+			;;
+	esac
+fi
+
+if ! command -v ansible &> /dev/null; then
+	case ${OS} in
+		Fedora|CentOS|'Red Hat Enterprise Linux')
+			yum --quiet --yes install ansible
+			;;
+
+		Debian|Ubuntu|'Raspbian GNU/Linux')
+			apt-get -qq update
+			apt-get -qq install ansible
 			;;
 	esac
 fi
@@ -118,73 +131,35 @@ if ! config true > /dev/null; then
 	die "Failed to parse config file: ${CONFIG_FILE}"
 fi
 
-log "Starting RIasC update at $(date)"
+log "Starting updater at $(date)"
 
-# Update system hostname to match Ansible inventory
-HOSTNAME=$(config .hostname)
+DEVICE_ID=$(config .ansible.device_id)
+API_HOST=$(config .ansible.api_host)
 
-if [ $(hostname) != "${HOSTNAME}" ]; then
-	log "Updating hostname to: ${HOSTNAME}"
-	hostnamectl set-hostname ${HOSTNAME}
-	sed -ie "s/raspberrypi/${HOSTNAME}/g" /etc/hosts
+UPTIME=$(awk '{print $1}' /proc/uptime)
 
-	log "Renewing DHCP lease to reflect new hostname"
-	dhclient -r
+BODY="{\"action\" : \"job_stalling\", \"uptime\" : ${UPTIME}}"
+
+RES=$(curl --header "Content-Type: application/json" \
+    --write-out %{http_code} \
+    --request POST \
+    --data "$BODY" \
+    $API_HOST/playbook.php?id=$DEVICE_ID \
+    --output /tmp/playbook.zip
+    )
+
+echo $RES
+if [ "$RES" == "204" ]; then
+  echo "Nothing to do"
+elif [ "$RES" == "200" ]; then
+  echo "Execute Ansible"
+  rm -rf /tmp/ansible
+  mkdir /tmp/ansible
+  cd /tmp/ansible
+  unzip /tmp/playbook.zip -d /tmp/ansible
+
+    ANSIBLE_FORCE_COLOR=1 \
+    ansible-playbook playbook.yml -i inventory/hosts.yml --vault-password-file /boot/firmware/vaultkey.secret
 fi
 
-# Import GPG keys for verifying Ansible commits
-log "Importing GPG keys for verify Ansible commits"
-KEYS=$(config '.ansible.keys | join(" ")')
-KEYSERVER=$(config '.ansible.keyserver')
-if [ -d /boot/keys/ ]; then
-	gpg --import /boot/keys/*
-fi
-for KEY in ${KEYS}; do
-	timeout ${TIMEOUT} gpg --keyserver ${KEYSERVER} --recv-keys ${KEY} || \
-	wget --timeout=${TIMEOUT} --quiet --output-document=- https://keys.openpgp.org/vks/v1/by-fingerprint/${KEY} | gpg --import || \
-	warn "Failed to fetch key ${KEY}"
-done
-
-# Gather Ansible options
-ANSIBLE_EXTRA_VARS="$(config --tojson --indent 0 .ansible.variables)"
-ANSIBLE_OPTS=" --url $(config .ansible.url)"
-ANSIBLE_OPTS+=" --inventory $(config .ansible.inventory)"
-ANSIBLE_OPTS+=" $(config '.ansible.extra_args // [ ] | join(" ")')"
-if [ -f /boot/firmware/vaultkey.secret ]; then
-    ANSIBLE_OPTS+=" --vault-password-file /boot/firmware/vaultkey.secret"
-fi
-
-
-if [ $(config '.ansible.verify_commit') == "true" ]; then
-	ANSIBLE_OPTS+="--verify-commit"
-fi
-
-if ! [ $(config '.ansible.branch') = null ]; then
-	ANSIBLE_OPTS+=" --checkout $(config '.ansible.branch')"
-fi
-
-# Run Ansible playbook
-log "Running Ansible playbook..."
-ANSIBLE_FORCE_COLOR=1 \
-ansible-pull ${ANSIBLE_OPTS} --extra-vars "${ANSIBLE_EXTRA_VARS}" $(config '.ansible.playbook // "site.yml"')
-
-# Print node details
-log "Node details:"
-echo
-echo "Operating System: ${OS}"
-echo "Operating System Version: ${VER}"
-echo "Architecture: ${ARCH}"
-echo "Hostname: ${HOSTNAME}"
-echo
-echo "Full config:"
-config --colors '... comments=""'
-
-log "Finished RIasC update successfully at $(date)!"
-
-if [ -n "${TTY}" ]; then
-	echo ""
-	echo "Please press a key to return to the login..."
-	read
-
-	chvt ${FG_TTY}
-fi
+log "Finished update successfully at $(date)!"

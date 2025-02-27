@@ -7,7 +7,9 @@ cd "${SCRIPT_PATH}"
 
 # Settings
 NODENAME="${NODENAME:-riasc-agent}"
-TOKEN="${TOKEN:-XXXXX}"
+USERNAME="${USERNAME:-ubuntu}"
+PASSWORD="${PASSWORD:-ubuntu}"
+FORCE_PW_CHANGE=${FORCE_PW_CHANGE:-true}
 
 DOWNLOAD_FOLDER="/tmp/data/download/"
 OUTPUT_FOLDER="/tmp/data/output/"
@@ -59,7 +61,7 @@ case ${FLAVOR} in
 		;;
 
 	ubuntu24.04)
-		IMAGE_FILE="ubuntu-24.04-preinstalled-server-arm64+raspi"
+		IMAGE_FILE="ubuntu-24.04.2-preinstalled-server-arm64+raspi"
 		IMAGE_SUFFIX="img.xz"
 		IMAGE_URL="https://cdimage.ubuntu.com/releases/24.04/release/${IMAGE_FILE}.${IMAGE_SUFFIX}"
 		;;
@@ -71,7 +73,10 @@ case ${FLAVOR} in
 		;;
 esac
 
-RIASC_IMAGE_FILE="$(date +%Y-%m-%d)-riasc-${NODENAME}${TAG}"
+RIASC_IMAGE_FILE="$(date +%Y-%m-%d)-riasc-${NODENAME}"
+if [ ! -z "$TAG" ]; then
+	RIASC_IMAGE_FILE+="-${TAG}"
+fi
 
 function check_command() {
 	if ! command -v "$1" &> /dev/null; then
@@ -82,13 +87,19 @@ function check_command() {
 
 # Show config
 echo "Using hostname: ${NODENAME}"
-echo "Using token: ${TOKEN}"
 echo "Using flavor: ${FLAVOR}"
-echo "Using repo: ${GIT_URL}"
-echo "Using branch: ${GIT_BRANCH}"
-if [! -z "$VAULT_KEY" ]; then
-	echo "Using ansible secret ${VAULT_KEY}"
+echo "Using device id: ${API_HOST}"
+echo "Using API URL: ${DEVICE_ID}"
+echo "Using User: ${USERNAME}"
+echo "Using Password: ${PASSWORD}"
+echo "Using Enfoce password change: ${FORCE_PW_CHANGE}"
+if [ ! -z "$VAULT_KEY" ]; then
+	echo "Using ansible secret: ${VAULT_KEY}"
 fi
+echo "Using Filename: ${RIASC_IMAGE_FILE}"
+
+
+
 
 # Check that required commands exist
 echo "Check if required commands are installed..."
@@ -144,7 +155,8 @@ cp "${REPOFOLDER}"/common/${CONFIG_FILE} riasc.yaml
 
 # Patch config
 sed -i \
-	-e "s/XXXXX/${TOKEN}/g" \
+	-e "s,dummyAPIUrl,${API_HOST},g" \
+	-e "s,dnummyId,${DEVICE_ID},g" \
 	-e "s/dummyHostname/${NODENAME}/g" \
 	riasc.yaml
 
@@ -152,20 +164,11 @@ if [ "${OS}" = "ubuntu" ]; then
 	cp "${REPOFOLDER}"/rpi/user-data ${WORKDIR}/
 	sed -i \
 		-e "s/dummyHostname/${NODENAME}/g" \
+		-e "s/replUSERNAME/${USERNAME}/g" \
+		-e "s/replPASSWORD/${PASSWORD}/g" \
+		-e "s/replExpire/${FORCE_PW_CHANGE}/g" \
 		user-data
 fi
-
-#Select branch
-if [[ -n ${GIT_BRANCH} ]]; then
-    sed -i \
-    	-e "/url: /a\\  branch: ${GIT_BRANCH}" \
-		riasc.yaml
-fi
-
-#Git url
-sed -i \
-	-e "s,dummyGitUrl,${GIT_URL},g" \
-	riasc.yaml
 
 #Generate ansible secret
 if [ ! -f ${OUTPUT_FOLDER}/"${NODENAME}"-vaultkey.secret ]; then
@@ -219,13 +222,15 @@ copy-in ${WORKDIR}/riasc.yaml /boot
 copy-in ${WORKDIR}/vaultkey.secret /boot
 
 mkdir-p /etc/systemd/timesyncd.conf.d/
-copy-in ${REPOFOLDER}/rpi/fallback-ntp.conf /etc/systemd/timesyncd.conf.d/
+copy-in ${WORKDIR}/fallback-ntp.conf /etc/systemd/timesyncd.conf.d/
 
 mkdir-p /usr/local/bin
-copy-in ${REPOFOLDER}/common/riasc-update.sh ${REPOFOLDER}/common/riasc-set-hostname.sh /usr/local/bin/
+copy-in ${REPOFOLDER}/common/http_update.sh ${REPOFOLDER}/common/riasc-set-hostname.sh ${REPOFOLDER}/common/heartbeat.sh /usr/local/bin/
+glob chmod 755 /usr/local/bin/http_update.sh
+glob chmod 755 /usr/local/bin/heartbeat.sh
 glob chmod 755 /usr/local/bin/riasc-*.sh
 
-copy-in ${REPOFOLDER}/rpi/keys/ /boot/
+copy-in ${WORKDIR}/keys/ /boot/
 
 echo "Disable daily APT timers"
 rm /etc/systemd/system/timers.target.wants/apt-daily-upgrade.timer
@@ -252,7 +257,10 @@ echo "Setting hostname..."
 write /etc/hostname "${NODENAME}"
 
 echo "Enable systemd risac services..."
-ln-sf /etc/systemd/system/risac-update.service /etc/systemd/system/multi-user.target.wants/riasc-update.service
+ln-sf /etc/systemd/system/http-update.service /etc/systemd/system/multi-user.target.wants/http-update.service
+ln-sf /etc/systemd/system/http-update.timer /etc/systemd/system/multi-user.target.wants/http-update.timer
+ln-sf /etc/systemd/system/heartbeat.service /etc/systemd/system/multi-user.target.wants/heartbeat.service
+ln-sf /etc/systemd/system/heartbeat.timer /etc/systemd/system/multi-user.target.wants/heartbeat.timer
 ln-sf /etc/systemd/system/risac-set-hostname.service /etc/systemd/system/multi-user.target.wants/riasc-set-hostname.service
 EOF
 		;;

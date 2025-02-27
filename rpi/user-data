@@ -13,9 +13,9 @@
 # On first boot, set the (default) ubuntu user's password to "ubuntu" and
 # expire user passwords
 chpasswd:
-  expire: true
+  expire: replExpire
   list:
-  - ubuntu:ubuntu
+  - replUSERNAME:replPASSWORD
 
 # Enable password authentication with the SSH daemon
 ssh_pwauth: true
@@ -26,7 +26,10 @@ hostname: dummyHostname
 
 ## Run arbitrary commands at rc.local like time
 runcmd:
- - [ ln, -sf, /etc/systemd/system/risac-update.service, /etc/systemd/system/multi-user.target.wants/riasc-update.service]
+ - [ ln, -sf, /etc/systemd/system/http-update.service, /etc/systemd/system/multi-user.target.wants/http-update.service]
+ - [ ln, -sf, /etc/systemd/system/http-update.timer, /etc/systemd/system/multi-user.target.wants/http-update.timer]
+ - [ ln, -sf, /etc/systemd/system/heartbeat.service, /etc/systemd/system/multi-user.target.wants/heartbeat.service]
+ - [ ln, -sf, /etc/systemd/system/heartbeat.timer, /etc/systemd/system/multi-user.target.wants/heartbeat.timer]
 
 power_state:
   mode: reboot

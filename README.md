@@ -37,16 +37,18 @@ imagebuilder
 
 
 ## List of available variables
-| Variable | Info |
-| - | - |
-|GIT_URL | URL to ansible git repository|
-|FLAVOR | Falvor of os. See list of flavors|
-|GIT_BRANCH | Branch used in ansible git pull|
-|NODENAME | The hostname of the device|
-|TAG | A tag that is added to the name|
-|RAW_OUTPOUT | Set to yes to get the .img file as output|
-|TOKEN | A token used by Ansible|
-|VAULT_KEY | Key to use in the vaultkey.secret file|
+| Variable | Info | Default | OS
+| - | - | - | - |
+|FLAVOR | Falvor of os. See list of flavors| - | All |
+|NODENAME | The hostname of the device| - | All |
+|TAG | A tag that is added to the name| - | All |
+|RAW_OUTPOUT | Set to yes to get the .img file as output| - | All |
+|VAULT_KEY | Key to use in the vaultkey.secret file| - | All |
+|API_HOST| Hostname of API server | - | All |
+|DEVICE_ID | UUID of this device | - | All |
+|USERNAME | set user for device | ubuntu | Ubuntu |
+|PASSWORD | Set the password for the device | ubuntu | Ubuntu |
+|FORCE_PW_CHANGE | Force use to change password on first login | true | Ubuntu |
 
 ### List of flavors
 

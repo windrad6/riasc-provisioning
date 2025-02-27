@@ -1,0 +1,10 @@
+[Unit]
+Description=Run heartbeat update service every 5 minutes
+
+[Timer]
+OnBootSec=1m
+OnCalendar=*:0/5
+Unit=heartbeat.service
+
+[Install]
+WantedBy=timers.target
