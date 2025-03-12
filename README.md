@@ -1,6 +1,6 @@
-# Raspberry PI Image generation
+# Raspberry PI Image Generation
 
-This project generates and customizes a Raspberry Pi image, either for Ubuntu or Raspberry Pi OS. The script is build for running within a docker container.
+This project generates and customizes a Raspberry Pi image, either for Ubuntu or Raspberry Pi OS. The script is built for running within a docker container.
 
 The customizations include:
 * Generating or adding a `vaultkey.secret` file
@@ -12,7 +12,7 @@ The customizations include:
 
 ## Usage
 
-1) Switch to direcory with Dockerfile to build image
+1) Switch to directory with Dockerfile to build image
 ```
 docker build --tag "imagebuilder" .
 ```
@@ -33,24 +33,24 @@ docker run \
 imagebuilder
 ```
 4) Image is placed in ´out/output´ folder
-5) Copy image to SD card. Either using dd or the Raspberry Pi Imiger
+5) Copy image to SD card. Either using dd or the Raspberry Pi Imager
 
 
-## List of available variables
+## List of Available Variables
 | Variable | Info | Default | OS
 | - | - | - | - |
-|FLAVOR | Falvor of os. See list of flavors| - | All |
+|FLAVOR | Flavor of os. See list of flavors| - | All |
 |NODENAME | The hostname of the device| - | All |
 |TAG | A tag that is added to the name| - | All |
 |RAW_OUTPOUT | Set to yes to get the .img file as output| - | All |
 |VAULT_KEY | Key to use in the vaultkey.secret file| - | All |
 |API_HOST| Hostname of API server | - | All |
 |DEVICE_ID | UUID of this device | - | All |
-|USERNAME | set user for device | ubuntu | Ubuntu |
+|USERNAME | Set user for device | ubuntu | Ubuntu |
 |PASSWORD | Set the password for the device | ubuntu | Ubuntu |
 |FORCE_PW_CHANGE | Force use to change password on first login | true | Ubuntu |
 
-### List of flavors
+### List of Flavors
 
 ubuntu24.04
 
@@ -86,7 +86,7 @@ To use a custom secret the VAULT_KEY variable can be set. If a vaultkey file of 
 - [Vincent Bareiß]() [📧](mailto:), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
 - [Manuel Pitz](https://https://github.com/windrad6) [📧](mailto:post@cl0.de), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
 
-### Funding acknowledment
+### Funding acknowledgment
 
 <img alt="European Flag" src="https://erigrid2.eu/wp-content/uploads/2020/03/europa_flag_low.jpg" align="left" style="margin-right: 10px"/> The development of [RIasC](https://riasc.eu) has been supported by the [ERIGrid 2.0](https://erigrid2.eu) project \
 of the H2020 Programme under [Grant Agreement No. 870620](https://cordis.europa.eu/project/id/870620)
