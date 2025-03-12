@@ -84,7 +84,7 @@ To use a custom secret the VAULT_KEY variable can be set. If a vaultkey file of 
 
 - [Steffen Vogel](https://github.com/stv0g) [📧](mailto:post@steffenvogel.de), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
 - [Vincent Bareiß]() [📧](mailto:), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
-- [Manuel Pitz](https://https://github.com/windrad6) [📧](mailto:post@cl0.de), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
+- [Manuel Pitz](https://github.com/windrad6) [📧](mailto:post@cl0.de), [Institute for Automation of Complex Power Systems](https://www.acs.eonerc.rwth-aachen.de), [RWTH Aachen University](https://www.rwth-aachen.de)
 
 ### Funding acknowledgment
 
