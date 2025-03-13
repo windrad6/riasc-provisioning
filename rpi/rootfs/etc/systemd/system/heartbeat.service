@@ -13,10 +13,5 @@ RemainAfterExit=no
 
 ExecStart=/usr/local/bin/heartbeat.sh
 
-StandardInput=tty
-TTYPath=/dev/tty2
-TTYReset=yes
-TTYVHangup=yes
-
 [Install]
 WantedBy=multi-user.target

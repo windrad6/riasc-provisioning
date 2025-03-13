@@ -3,7 +3,7 @@ Description=Run update service every 1 minutes
 
 [Timer]
 OnBootSec=1m
-OnCalendar=*:0/1
+OnUnitInactiveSec=1m
 Unit=http-update.service
 
 [Install]
